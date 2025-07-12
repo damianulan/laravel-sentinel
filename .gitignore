@@ -1,0 +1,8 @@
+/.idea
+/.history
+/.vscode
+/tests/databases
+/vendor
+.phpunit.result.cache
+composer.phar
+composer.lock

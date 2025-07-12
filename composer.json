@@ -1,0 +1,56 @@
+{
+  "name": "damianulan/laravel-sentinel",
+  "type": "library",
+  "description": "Laravel context-based roles and permissions",
+  "keywords": [
+    "laravel",
+    "sentinel",
+    "roles",
+    "permissions"
+  ],
+  "license": "MIT",
+  "authors": [
+    {
+      "name": "Damian Ułan",
+      "email": "damian.ulan@protonmail.com",
+      "homepage": "https://damianulan.me",
+      "role": "Developer"
+    }
+  ],
+  "require": {
+    "php": "^8.3",
+    "ext-json": "*",
+    "illuminate/support": "^9.0|^10.0|^11.0|^12.0",
+    "mews/purifier": "^3.4"
+  },
+  "require-dev": {
+    "mockery/mockery": "^1.5",
+    "phpunit/phpunit": "^11.0|^12.0"
+  },
+  "suggest": {
+    "laravel/framework": "^11.0"
+  },
+  "autoload": {
+    "psr-4": {
+      "Sentinel\\": "src"
+    }
+  },
+  "autoload-dev": {
+    "psr-4": {
+      "Sentinel\\Tests\\": "tests"
+    }
+  },
+  "scripts": {
+    "test": "vendor/bin/phpunit"
+  },
+  "extra": {
+    "laravel": {
+      "providers": [
+        "Sentinel\\SentinelServiceProvider"
+      ],
+      "aliases": {
+        "Sentinel": "Sentinel\\Facades\\Sentinel"
+      }
+    }
+  }
+}
