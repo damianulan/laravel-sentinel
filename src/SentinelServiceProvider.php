@@ -10,6 +10,8 @@ use Sentinel\Console\Commands\Generators\MakePermissionsLibCommand;
 use Sentinel\Console\Commands\Generators\MakeRolesLibCommand;
 use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\Log;
+use Sentinel\Models\Permission;
+use Sentinel\Models\Role;
 
 /**
  * @author Damian Ułan <damian.ulan@protonmail.com>
