@@ -37,9 +37,7 @@ class SentinelServiceProvider extends ServiceProvider
 
         $this->loadTranslationsFrom(__DIR__ . '/../lang', 'sentinel');
 
-        $this->loadMigrationsFrom([
-            __DIR__ . '/../database/migrations' => database_path('migrations'),
-        ]);
+        $this->loadMigrationsFrom(__DIR__ . '/../database/migrations');
 
         $this->publishesMigrations([
             __DIR__ . '/../database/migrations' => database_path('migrations'),
