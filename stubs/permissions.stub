@@ -1,0 +1,26 @@
+<?php
+
+namespace {{ namespace }};
+
+use Sentinel\Config\Warden\PermissionWarden;
+
+final readonly class {{ class }} extends PermissionWarden
+{
+    public const ADMINISTRATION = 'administration';
+    public const TEST = 'test';
+
+    public static function nonassignable(): array
+    {
+        return [
+            //
+        ];
+    }
+
+    public static function assignable(): array
+    {
+        return [
+            self::ADMINISTRATION => ['admins'],
+            self::TEST => ['*'],
+        ];
+    }
+}

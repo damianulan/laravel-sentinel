@@ -1,7 +1,7 @@
 {
   "name": "damianulan/laravel-sentinel",
   "type": "library",
-  "description": "Laravel context-based roles and permissions",
+  "description": "Laravel 12 context-based roles and permissions",
   "keywords": [
     "laravel",
     "sentinel",

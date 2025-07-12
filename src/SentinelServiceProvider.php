@@ -6,6 +6,10 @@ use Illuminate\Support\ServiceProvider;
 use Illuminate\View\Compilers\BladeCompiler;
 use Illuminate\Support\Facades\Blade;
 use Sentinel\Console\Commands\AssignRca;
+use Sentinel\Console\Commands\Generators\MakePermissionsLibCommand;
+use Sentinel\Console\Commands\Generators\MakeRolesLibCommand;
+use Illuminate\Support\Facades\Auth;
+use Illuminate\Support\Facades\Log;
 
 /**
  * @author Damian Ułan <damian.ulan@protonmail.com>
@@ -31,6 +35,14 @@ class SentinelServiceProvider extends ServiceProvider
 
         $this->loadTranslationsFrom(__DIR__ . '/../lang', 'sentinel');
 
+        $this->loadMigrationsFrom([
+            __DIR__ . '/../database/migrations' => database_path('migrations'),
+        ]);
+
+        $this->publishesMigrations([
+            __DIR__ . '/../database/migrations' => database_path('migrations'),
+        ]);
+
         $this->publishes([
             __DIR__ . '/../lang'                   => $this->app->langPath('vendor/sentinel'),
         ], 'sentinel-langs');
@@ -46,6 +58,30 @@ class SentinelServiceProvider extends ServiceProvider
 
         $this->registerBladeDirectives();
         $this->registerCommands();
+        $this->bootRolesAndPermissions();
+    }
+
+    private function bootRolesAndPermissions(): void
+    {
+        Blade::if('role', function ($role) {
+            $user = Auth::user();
+            if ($user && $user instanceof \Sentinel\Traits\HasRolesAndPermissions) {
+                return Auth::user()->hasRole($role);
+            }
+            return false;
+        });
+
+        try {
+            Permission::get()->map(function ($permission) {
+                Gate::define($permission->slug, function ($user, $context = null) use ($permission) {
+                    return $user->hasPermissionTo($permission, $context);
+                });
+            });
+        } catch (\Exception $e) {
+            Log::error(static::class . ' failed fetching permission: ' . $e->getMessage(), [
+                'exception' => $e,
+            ]);
+        }
     }
 
     public function registerBladeDirectives(): void {}
@@ -55,6 +91,8 @@ class SentinelServiceProvider extends ServiceProvider
         if ($this->app->runningInConsole()) {
             $this->commands([
                 AssignRca::class,
+                MakePermissionsLibCommand::class,
+                MakeRolesLibCommand::class,
             ]);
         }
     }

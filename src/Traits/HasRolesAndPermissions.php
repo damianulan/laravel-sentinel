@@ -1,6 +1,6 @@
 <?php
 
-namespace App\Traits;
+namespace Sentinel\Traits;
 
 use Sentinel\Contexts\System;
 use Sentinel\Models\Permission;
@@ -12,6 +12,11 @@ use Illuminate\Database\Query\Builder as DBBuilder;
 use Illuminate\Support\Collection;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Str;
+use Sentinel\Config\SentinelManager;
+use Sentinel\Exceptions\RoleWardenException;
+use Sentinel\Exceptions\PermissionWardenException;
+use Sentinel\Config\Warden\PermissionWarden;
+use Sentinel\Config\Warden\RoleWarden;
 
 /**
  * @author Damian Ułan <damian.ulan@protonmail.com>
@@ -19,6 +24,30 @@ use Illuminate\Support\Str;
  */
 trait HasRolesAndPermissions
 {
+
+    private static function getRolesLib(): RoleWarden
+    {
+        $value = SentinelManager::getRolesLibNamespace();
+
+        if (empty($value)) {
+            throw new RoleWardenException;
+        }
+
+        return new $value();
+    }
+
+    private static function getPermissionsLib(): PermissionWarden
+    {
+        $value = SentinelManager::getRolesLibNamespace();
+
+        if (empty($value)) {
+            throw new PermissionWardenException;
+        }
+
+        return new $value();
+    }
+
+
     /**
      * Find all users with given role slugs.
      *
@@ -408,7 +437,7 @@ trait HasRolesAndPermissions
         $str = Str::of($permission);
         if ($str->contains('-*')) {
             $needle = $str->beforeLast('-*');
-            $all = array_keys(PermissionLib::normal());
+            $all = array_keys(self::getPermissionsLib()::assignable());
             $matches = array_filter($all, function ($value) use ($needle) {
                 return Str::of($value)->contains($needle);
             });
@@ -433,7 +462,7 @@ trait HasRolesAndPermissions
      */
     public function isAdmin()
     {
-        return $this->hasAnyRoles(SystemRolesLib::admins());
+        return $this->hasAnyRoles(self::getRolesLib()::admins());
     }
 
     public function isRoot(bool $strict = false)

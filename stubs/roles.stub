@@ -1,0 +1,35 @@
+<?php
+
+namespace {{ namespace }};
+
+use Sentinel\Config\Warden\RoleWarden;
+
+final readonly class {{ class }} extends Warden
+{
+
+    const ROOT = 'root';
+
+    const HELPDESK = 'support';
+
+    const ADMIN = 'admin';
+
+    const EMPLOYEE = 'employee';
+
+
+    public static function assignable(): array
+    {
+        return [
+            self::EMPLOYEE,
+            self::ADMIN,
+        ];
+    }
+
+    public static function admins(): array
+    {
+        return [
+            self::ADMIN,
+            self::ROOT,
+            self::HELPDESK,
+        ];
+    }
+}
