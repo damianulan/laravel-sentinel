@@ -54,6 +54,9 @@ class AssignRca extends Command
     public function setRoles(): void
     {
         foreach ($this->rolesLib::values() as $name) {
+            if (Role::whereSlug($name)->exists()) {
+                continue;
+            }
             $this->$name = new Role;
             $this->$name->slug = $name;
             $this->$name->assignable = in_array($name, $this->rolesLib::assignable());
@@ -72,7 +75,7 @@ class AssignRca extends Command
             }
         }
 
-        foreach ($this->permissionsLib::normal() as $slug => $roles) {
+        foreach ($this->permissionsLib::assignable() as $slug => $roles) {
             $perm = new Permission;
             $perm->slug = $slug;
             $perm->assignable = true;

@@ -14,8 +14,11 @@ return new class extends Migration
     public function up()
     {
         Schema::create('has_roles', function (Blueprint $table) {
-            $table->uuidMorphs('model', 'model');
-
+            if (config('sentinel.uuids')) {
+                $table->uuidMorphs('model', 'model');
+            } else {
+                $table->morphs('model', 'model');
+            }
             $table->foreignId('role_id');
             $table->foreign('role_id')->references('id')->on('roles')->onDelete('cascade');
             if (config('sentinel.uuids')) {

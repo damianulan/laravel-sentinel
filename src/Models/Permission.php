@@ -28,7 +28,7 @@ class Permission extends Model
         return $this->belongsToMany(Role::class, 'roles_permissions');
     }
 
-    public static function getBySlug(string $slug): ?self
+    public static function findBySlug(string $slug): ?self
     {
         return static::where('slug', $slug)->first();
     }
@@ -46,5 +46,15 @@ class Permission extends Model
         }
 
         return $output;
+    }
+
+    public function scopeWhereSlug(Builder $query, string $slug): void
+    {
+        $query->where('slug', $slug);
+    }
+
+    public function scopeWhereAssignable(Builder $query): void
+    {
+        $query->where('assignable', 1);
     }
 }
