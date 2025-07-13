@@ -71,6 +71,10 @@ class SentinelServiceProvider extends ServiceProvider
             return false;
         });
 
+        Blade::if('admin', function () {
+            return Auth::user()->isAdmin();
+        });
+
         try {
             Permission::get()->map(function ($permission) {
                 Gate::define($permission->slug, function ($user, $context = null) use ($permission) {
