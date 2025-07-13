@@ -49,11 +49,37 @@ class AssignRca extends Command
             $this->permissionsLib = new $permissionsLib();
         }
 
-        $progressCount = count($this->rolesLib::values()) + count($this->permissionsLib::nonassignable());
+        $roles = $this->rolesLib::values();
+        $permissions = $this->permissionsLib::values();
+        $progressCount = count($roles) + count($permissions);
         $this->bar = $this->output->createProgressBar($progressCount);
+        $this->bar->start();
 
         $this->setRoles();
         $this->setPermissions();
+
+        $this->bar->finish();
+        $this->info('Sentinel roles and permissions loaded successfully!');
+
+        $toDeletePermissions = Permission::whereNotIn('slug', $permissions)->get();
+        $toDeleteRoles = Role::whereNotIn('slug', $roles)->get();
+        $deletionRecords = $toDeletePermissions->count() + $toDeleteRoles->count();
+
+        if ($deletionRecords > 0) {
+            $this->info('Deleting outdated ' . $toDeletePermissions->count() . ' permissions and ' . $toDeleteRoles->count() . ' roles');
+            $bar = $this->output->createProgressBar($deletionRecords);
+            $bar->start();
+            foreach ($toDeletePermissions as $permission) {
+                $permission->delete();
+                $bar->advance();
+            }
+            foreach ($toDeleteRoles as $role) {
+                $role->delete();
+                $bar->advance();
+            }
+            $bar->finish();
+            $this->info('Outdated Sentinel roles and permissions deleted successfully!');
+        }
     }
 
     public function setRoles(): void
