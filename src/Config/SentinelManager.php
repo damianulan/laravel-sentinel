@@ -19,6 +19,9 @@ class SentinelManager
             $parentClass = RoleWarden::class;
             // Get all declared classes from Composer's autoloader
             $classMap = require base_path('vendor/composer/autoload_classmap.php');
+            $classMap = array_filter($classMap, function ($key) {
+                return strpos($key, 'App\\Warden') !== false;
+            }, ARRAY_FILTER_USE_KEY);
 
             foreach (array_keys($classMap) as $class) {
                 if (!class_exists($class)) {
@@ -52,6 +55,9 @@ class SentinelManager
             $parentClass = PermissionWarden::class;
             // Get all declared classes from Composer's autoloader
             $classMap = require base_path('vendor/composer/autoload_classmap.php');
+            $classMap = array_filter($classMap, function ($key) {
+                return strpos($key, 'App\\Warden') !== false;
+            }, ARRAY_FILTER_USE_KEY);
 
             foreach (array_keys($classMap) as $class) {
                 if (!class_exists($class)) {
