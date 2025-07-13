@@ -4,7 +4,7 @@ namespace {{ namespace }};
 
 use Sentinel\Config\Warden\RoleWarden;
 
-final readonly class {{ class }} extends Warden
+final readonly class {{ class }} extends RoleWarden
 {
 
     const ROOT = 'root';

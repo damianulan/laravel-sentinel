@@ -4,9 +4,15 @@ namespace Sentinel\Config\Warden;
 
 use Sentinel\Config\Warden;
 
-abstract readonly class RoleWarden extends Warden
+readonly class RoleWarden extends Warden
 {
-    abstract public static function assignable(): array;
+    public static function assignable(): array
+    {
+        return [];
+    }
 
-    abstract public static function admins(): array;
+    public static function admins(): array
+    {
+        return [];
+    }
 }
