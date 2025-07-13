@@ -2,7 +2,7 @@
 
 namespace Sentinel\Config;
 
-abstract readonly class Warden
+readonly class Warden
 {
 
     /**
