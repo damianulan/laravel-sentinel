@@ -11,6 +11,7 @@ class AssignRca extends Command
 {
     private $rolesLib;
     private $permissionsLib;
+    private $bar;
 
     /**
      * The name and signature of the console command.
@@ -33,6 +34,7 @@ class AssignRca extends Command
     {
         $rolesLib = SentinelManager::getRolesLibNamespace();
         $permissionsLib = SentinelManager::getPermissionsLibNamespace();
+        $this->info('Loading Sentinel roles and permissions...');
 
         if (empty($rolesLib)) {
             $this->error('Role Warden class is not declared in the project!');
@@ -47,6 +49,9 @@ class AssignRca extends Command
             $this->permissionsLib = new $permissionsLib();
         }
 
+        $progressCount = count($this->rolesLib::values()) + count($this->permissionsLib::nonassignable());
+        $this->bar = $this->output->createProgressBar($progressCount);
+
         $this->setRoles();
         $this->setPermissions();
     }
@@ -54,6 +59,7 @@ class AssignRca extends Command
     public function setRoles(): void
     {
         foreach ($this->rolesLib::values() as $name) {
+            $this->bar->advance();
             if (Role::whereSlug($name)->exists()) {
                 continue;
             }
@@ -67,6 +73,10 @@ class AssignRca extends Command
     private function setPermissions()
     {
         foreach ($this->permissionsLib::nonassignable() as $slug => $roles) {
+            $this->bar->advance();
+            if (Permission::whereSlug($slug)->exists()) {
+                continue;
+            }
             $perm = new Permission;
             $perm->slug = $slug;
             $perm->assignable = false;
@@ -76,6 +86,10 @@ class AssignRca extends Command
         }
 
         foreach ($this->permissionsLib::assignable() as $slug => $roles) {
+            $this->bar->advance();
+            if (Permission::whereSlug($slug)->exists()) {
+                continue;
+            }
             $perm = new Permission;
             $perm->slug = $slug;
             $perm->assignable = true;

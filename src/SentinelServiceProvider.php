@@ -12,6 +12,7 @@ use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\Log;
 use Sentinel\Models\Permission;
 use Sentinel\Models\Role;
+use Illuminate\Support\Facades\Gate;
 
 /**
  * @author Damian Ułan <damian.ulan@protonmail.com>
