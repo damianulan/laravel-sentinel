@@ -57,7 +57,6 @@ class SentinelServiceProvider extends ServiceProvider
             __DIR__ . '/../config/sentinel.php'      => config_path('sentinel.php'),
         ], 'sentinel');
 
-        $this->registerBladeDirectives();
         $this->registerCommands();
         $this->bootRolesAndPermissions();
     }
@@ -84,8 +83,6 @@ class SentinelServiceProvider extends ServiceProvider
             ]);
         }
     }
-
-    public function registerBladeDirectives(): void {}
 
     public function registerCommands(): void
     {

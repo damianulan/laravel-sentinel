@@ -6,6 +6,8 @@ use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsToMany;
 use Sentinel\Config\SentinelManager;
+use Sentinel\Config\Warden\PermissionWarden;
+use Sentinel\Exceptions\PermissionWardenException;
 use Sentinel\Models\Role;
 
 class Permission extends Model
@@ -54,5 +56,21 @@ class Permission extends Model
     public function scopeWhereAssignable(Builder $query): void
     {
         $query->where('assignable', 1);
+    }
+
+    public static function getPermissionsLib()
+    {
+        $value = SentinelManager::getPermissionsLibNamespace();
+
+        $class = null;
+        if (!empty($value)) {
+            $class = new $value();
+        }
+
+        if (empty($value) || !($class instanceof PermissionWarden)) {
+            throw new PermissionWardenException;
+        }
+
+        return $class;
     }
 }

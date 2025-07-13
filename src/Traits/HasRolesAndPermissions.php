@@ -12,11 +12,6 @@ use Illuminate\Database\Query\Builder as DBBuilder;
 use Illuminate\Support\Collection;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Str;
-use Sentinel\Config\SentinelManager;
-use Sentinel\Exceptions\RoleWardenException;
-use Sentinel\Exceptions\PermissionWardenException;
-use Sentinel\Config\Warden\PermissionWarden;
-use Sentinel\Config\Warden\RoleWarden;
 
 /**
  * @author Damian Ułan <damian.ulan@protonmail.com>
@@ -24,30 +19,6 @@ use Sentinel\Config\Warden\RoleWarden;
  */
 trait HasRolesAndPermissions
 {
-
-    private static function getRolesLib(): RoleWarden
-    {
-        $value = SentinelManager::getRolesLibNamespace();
-
-        if (empty($value)) {
-            throw new RoleWardenException;
-        }
-
-        return new $value();
-    }
-
-    private static function getPermissionsLib(): PermissionWarden
-    {
-        $value = SentinelManager::getRolesLibNamespace();
-
-        if (empty($value)) {
-            throw new PermissionWardenException;
-        }
-
-        return new $value();
-    }
-
-
     /**
      * Find all users with given role slugs.
      *
@@ -128,8 +99,10 @@ trait HasRolesAndPermissions
     {
         $slugs = $this->roles->pluck('slug')->unique();
         $roles = new Collection;
+        $langs = Role::getRolesLib()::labels();
         foreach ($slugs as $slug) {
-            $roles->push(__('gates.roles.' . $slug));
+            $lang = $langs[$slug] ?? $slug;
+            $roles->push($lang);
         }
 
         return $roles;
@@ -437,7 +410,7 @@ trait HasRolesAndPermissions
         $str = Str::of($permission);
         if ($str->contains('-*')) {
             $needle = $str->beforeLast('-*');
-            $all = array_keys(self::getPermissionsLib()::assignable());
+            $all = array_keys(Permission::getPermissionsLib()::assignable());
             $matches = array_filter($all, function ($value) use ($needle) {
                 return Str::of($value)->contains($needle);
             });
@@ -462,7 +435,7 @@ trait HasRolesAndPermissions
      */
     public function isAdmin()
     {
-        return $this->hasAnyRoles(self::getRolesLib()::admins());
+        return $this->hasAnyRoles(Role::getRolesLib()::admins());
     }
 
     public function isRoot(bool $strict = false)
