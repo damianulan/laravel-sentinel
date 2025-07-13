@@ -2,7 +2,7 @@
 
 namespace Sentinel\Config\Warden;
 
-use Sentinel\Config\Warden;
+use Sentinel\Config\Warden\Warden;
 
 class PermissionWarden extends Warden
 {

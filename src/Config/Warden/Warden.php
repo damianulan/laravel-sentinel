@@ -1,6 +1,6 @@
 <?php
 
-namespace Sentinel\Config;
+namespace Sentinel\Config\Warden;
 
 class Warden
 {
