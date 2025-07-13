@@ -4,7 +4,7 @@ namespace {{ namespace }};
 
 use Sentinel\Config\Warden\PermissionWarden;
 
-final readonly class {{ class }} extends PermissionWarden
+final class {{ class }} extends PermissionWarden
 {
     public const ADMINISTRATION = 'administration';
     public const TEST = 'test';

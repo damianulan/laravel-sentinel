@@ -9,7 +9,6 @@ use Sentinel\Config\Warden\PermissionWarden;
 use Sentinel\Config\Warden\RoleWarden;
 use ReflectionClass;
 
-
 class SentinelManager
 {
     public static function getRolesLibNamespace(): ?string
