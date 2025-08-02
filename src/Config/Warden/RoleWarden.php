@@ -2,8 +2,6 @@
 
 namespace Sentinel\Config\Warden;
 
-use Sentinel\Config\Warden\Warden;
-
 class RoleWarden extends Warden
 {
     public static function assignable(): array

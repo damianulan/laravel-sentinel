@@ -5,11 +5,30 @@ namespace Sentinel\Models;
 use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsToMany;
-use Sentinel\Models\Permission;
 use Sentinel\Config\SentinelManager;
 use Sentinel\Config\Warden\RoleWarden;
 use Sentinel\Exceptions\RoleWardenException;
 
+/**
+ * @property int $id
+ * @property string $slug
+ * @property bool $assignable
+ * @property \Illuminate\Support\Carbon|null $created_at
+ * @property \Illuminate\Support\Carbon|null $updated_at
+ * @property-read \Illuminate\Database\Eloquent\Collection<int, \Sentinel\Models\Permission> $permissions
+ * @property-read int|null $permissions_count
+ *
+ * @method static Builder<static>|Role newModelQuery()
+ * @method static Builder<static>|Role newQuery()
+ * @method static Builder<static>|Role query()
+ * @method static Builder<static>|Role whereAssignable($value)
+ * @method static Builder<static>|Role whereCreatedAt($value)
+ * @method static Builder<static>|Role whereId($value)
+ * @method static Builder<static>|Role whereSlug($value)
+ * @method static Builder<static>|Role whereUpdatedAt($value)
+ *
+ * @mixin \Eloquent
+ */
 class Role extends Model
 {
     protected $table = 'roles';
@@ -53,7 +72,7 @@ class Role extends Model
         $roles = self::where('assignable', 1)->get();
         if (! $roles->isEmpty()) {
             foreach ($roles as $role) {
-                $name = __('gates.roles.' . $role->slug);
+                $name = __('gates.roles.'.$role->slug);
                 $output[$role->id] = $name;
             }
         }
@@ -76,11 +95,11 @@ class Role extends Model
         $value = SentinelManager::getRolesLibNamespace();
 
         $class = null;
-        if (!empty($value)) {
-            $class = new $value();
+        if (! empty($value)) {
+            $class = new $value;
         }
 
-        if (empty($value) || !($class instanceof RoleWarden)) {
+        if (empty($value) || ! ($class instanceof RoleWarden)) {
             throw new RoleWardenException;
         }
 

@@ -4,7 +4,6 @@ namespace Sentinel\Config\Warden;
 
 class Warden
 {
-
     /**
      * Returns a list of all enum values.
      *

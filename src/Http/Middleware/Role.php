@@ -8,13 +8,10 @@ use Illuminate\Support\Facades\Auth;
 
 class Role
 {
-
     /**
      * Check role for authenticated user.
      *
-     * @param \Illuminate\Http\Request $request
-     * @param \Closure                 $next
-     * @param mixed                    $role
+     * @param  mixed  $role
      * @return void
      */
     public function handle(Request $request, Closure $next, $role)

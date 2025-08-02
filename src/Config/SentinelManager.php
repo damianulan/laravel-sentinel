@@ -3,17 +3,22 @@
 namespace Sentinel\Config;
 
 use Illuminate\Support\Facades\Cache;
-use Sentinel\Exceptions\RoleWardenException;
-use Sentinel\Exceptions\PermissionWardenException;
+use ReflectionClass;
 use Sentinel\Config\Warden\PermissionWarden;
 use Sentinel\Config\Warden\RoleWarden;
-use ReflectionClass;
+use Sentinel\Exceptions\PermissionWardenException;
+use Sentinel\Exceptions\RoleWardenException;
 
 class SentinelManager
 {
+    const CACHES = [
+        'rolesLib',
+        'permissionsLib',
+    ];
+
     public static function getRolesLibNamespace(): ?string
     {
-        $value = Cache::get('sentinel.rolesLib');
+        $value = self::getCache('rolesLib');
 
         if (empty($value)) {
             $parentClass = RoleWarden::class;
@@ -24,7 +29,7 @@ class SentinelManager
             }, ARRAY_FILTER_USE_KEY);
 
             foreach (array_keys($classMap) as $class) {
-                if (!class_exists($class)) {
+                if (! class_exists($class)) {
                     continue;
                 }
 
@@ -33,7 +38,7 @@ class SentinelManager
 
                     if (
                         $reflection->isSubclassOf($parentClass) &&
-                        !$reflection->isAbstract()
+                        ! $reflection->isAbstract()
                     ) {
                         $value = $class;
                     }
@@ -41,7 +46,7 @@ class SentinelManager
                     // Skip problematic classes
                 }
             }
-            Cache::put('sentinel.rolesLib', $value);
+            self::putCache('rolesLib', $value);
         }
 
         return $value;
@@ -49,7 +54,7 @@ class SentinelManager
 
     public static function getPermissionsLibNamespace(): ?string
     {
-        $value = Cache::get('sentinel.permissionsLib');
+        $value = self::getCache('permissionsLib');
 
         if (empty($value)) {
             $parentClass = PermissionWarden::class;
@@ -60,7 +65,7 @@ class SentinelManager
             }, ARRAY_FILTER_USE_KEY);
 
             foreach (array_keys($classMap) as $class) {
-                if (!class_exists($class)) {
+                if (! class_exists($class)) {
                     continue;
                 }
 
@@ -69,7 +74,7 @@ class SentinelManager
 
                     if (
                         $reflection->isSubclassOf($parentClass) &&
-                        !$reflection->isAbstract()
+                        ! $reflection->isAbstract()
                     ) {
                         $value = $class;
                     }
@@ -77,7 +82,7 @@ class SentinelManager
                     // Skip problematic classes
                 }
             }
-            Cache::put('sentinel.permissionsLib', $value);
+            self::putCache('permissionsLib', $value);
         }
 
         return $value;
@@ -90,7 +95,7 @@ class SentinelManager
             throw new RoleWardenException;
         }
 
-        return new $value();
+        return new $value;
     }
 
     public static function getPermissionsLib(): PermissionWarden
@@ -100,6 +105,39 @@ class SentinelManager
             throw new PermissionWardenException;
         }
 
-        return new $value();
+        return new $value;
+    }
+
+    private static function getCacheDriver()
+    {
+        $driver = config('sentinel.cache.driver');
+        if ($driver === 'default') {
+            $driver = config('cache.default');
+        }
+
+        return Cache::driver($driver);
+    }
+
+    public static function putCache(string $key, $value): void
+    {
+        if (in_array($key, self::CACHES)) {
+            self::getCacheDriver()->put(config('sentinel.cache.prefix').'.'.$key, $value, config('sentinel.cache.expire_after'));
+        }
+    }
+
+    public static function getCache(string $key): mixed
+    {
+        if (in_array($key, self::CACHES)) {
+            return self::getCacheDriver()->get(config('sentinel.cache.prefix').'.'.$key);
+        }
+
+        return null;
+    }
+
+    public static function flushCache(): void
+    {
+        foreach (self::CACHES as $key) {
+            self::getCacheDriver()->forget(config('sentinel.cache.prefix').'.'.$key);
+        }
     }
 }

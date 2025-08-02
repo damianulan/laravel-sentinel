@@ -2,9 +2,6 @@
 
 namespace Sentinel\Traits;
 
-use Sentinel\Contexts\System;
-use Sentinel\Models\Permission;
-use Sentinel\Models\Role;
 use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsToMany;
@@ -12,6 +9,8 @@ use Illuminate\Database\Query\Builder as DBBuilder;
 use Illuminate\Support\Collection;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Str;
+use Sentinel\Models\Permission;
+use Sentinel\Models\Role;
 
 /**
  * @author Damian Ułan <damian.ulan@protonmail.com>
@@ -19,30 +18,6 @@ use Illuminate\Support\Str;
  */
 trait HasRolesAndPermissions
 {
-    /**
-     * Find all users with given role slugs.
-     *
-     * @param  mixed  ...$roles
-     */
-    public static function role(...$roles): Builder
-    {
-        return self::whereHas('roles', function (Builder $q) use ($roles) {
-            $q->whereIn('slug', $roles);
-        });
-    }
-
-    /**
-     * Find all users with given permission slugs.
-     *
-     * @param  mixed  ...$permissions
-     */
-    public static function permission(...$permissions): Builder
-    {
-        return self::whereHas('permissions', function (Builder $q) use ($permissions) {
-            $q->whereIn('slug', $permissions);
-        });
-    }
-
     /**
      * Context is not required, if not provided, checks for all contexts. System context is superior - if context is provided,
      * but assigned to System context, then it will return true.
@@ -52,10 +27,12 @@ trait HasRolesAndPermissions
      */
     public function roles($context = null): BelongsToMany
     {
-        $relation = $this->morphToMany(Role::class, 'model', 'has_roles');
+        $role_class = config('sentinel.models.role');
+        $relation = $this->morphToMany($role_class, 'model', 'has_roles');
         if ($context && $context instanceof Model) {
-            $system_context = new System;
-            $relation = $this->morphToMany(Role::class, 'model', 'has_roles')->where(function (Builder $q) use ($context, $system_context) {
+            $sys = config('sentinel.default_context');
+            $system_context = new $sys;
+            $relation = $this->morphToMany($role_class, 'model', 'has_roles')->where(function (Builder $q) use ($context, $system_context) {
                 $q->where(['context_type' => $context::class, 'context_id' => $context->id])
                     ->orWhere(['context_type' => $system_context::class]);
             });
@@ -66,8 +43,6 @@ trait HasRolesAndPermissions
 
     /**
      * has_roles raw db representation
-     *
-     * @return \Illuminate\Database\Query\Builder
      */
     public function roleAssignments(): DBBuilder
     {
@@ -81,7 +56,7 @@ trait HasRolesAndPermissions
      */
     public function permissions()
     {
-        return $this->morphToMany(Permission::class, 'model', 'has_permissions');
+        return $this->morphToMany(config('sentinel.models.permission'), 'model', 'has_permissions');
     }
 
     /**
@@ -214,7 +189,9 @@ trait HasRolesAndPermissions
      */
     public function getAllPermissions(array $permissions)
     {
-        return Permission::where('slug', $permissions)->get();
+        $perm_class = config('sentinel.models.permission');
+
+        return $perm_class::where('slug', $permissions)->get();
     }
 
     /**
@@ -305,8 +282,9 @@ trait HasRolesAndPermissions
      */
     public function revokeRoleSlug($slug, $context = null)
     {
+        $role_class = config('sentinel.models.role');
         if (! $slug instanceof Role) {
-            $role = Role::findBySlug($slug);
+            $role = $role_class::findBySlug($slug);
         } else {
             $role = $slug;
         }
@@ -327,8 +305,9 @@ trait HasRolesAndPermissions
      */
     public function revokeRole($role_id, $context = null)
     {
+        $role_class = config('sentinel.models.role');
         if (! $role_id instanceof Role) {
-            $role = Role::find($role_id);
+            $role = $role_class::find($role_id);
         } else {
             $role = $role_id;
         }
@@ -345,7 +324,8 @@ trait HasRolesAndPermissions
         $additional = [];
 
         if (! $context || ! ($context instanceof Model)) {
-            $context = new System;
+            $sys = config('sentinel.default_context');
+            $context = new $sys;
         }
         $additional['context_type'] = $context::class;
         $additional['context_id'] = $context->id;
@@ -364,7 +344,8 @@ trait HasRolesAndPermissions
         $additional = [];
 
         if (! $context || ! ($context instanceof Model)) {
-            $context = new System;
+            $sys = config('sentinel.default_context');
+            $context = new $sys;
         }
         $additional['context_type'] = $context::class;
         $additional['context_id'] = $context->id;
@@ -445,5 +426,29 @@ trait HasRolesAndPermissions
         }
 
         return $this->hasAnyRoles(['root', 'support']);
+    }
+
+    protected function scopeWithRole(Builder $query, ...$slugs): void
+    {
+        $query->whereHas('roles', function (Builder $q) use ($slugs) {
+            $q->whereIn('slug', $slugs);
+        });
+    }
+
+    protected function scopeWithPermission(Builder $query, ...$slugs): void
+    {
+        $query->where(function (Builder $q) use ($slugs) {
+            $q->where(function (Builder $q) use ($slugs) {
+                $q->whereHas('permissions', function (Builder $q) use ($slugs) {
+                    $q->where('slug', $slugs);
+                });
+            })->orWhere(function (Builder $q) use ($slugs) {
+                $q->whereHas('roles', function (Builder $q) use ($slugs) {
+                    $q->whereHas('permissions', function (Builder $q) use ($slugs) {
+                        $q->where('slug', $slugs);
+                    });
+                });
+            });
+        });
     }
 }

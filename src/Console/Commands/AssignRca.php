@@ -3,14 +3,19 @@
 namespace Sentinel\Console\Commands;
 
 use Illuminate\Console\Command;
-use Sentinel\Models\Role;
-use Sentinel\Models\Permission;
+use Illuminate\Support\Facades\DB;
 use Sentinel\Config\SentinelManager;
+use Sentinel\Exceptions\PermissionWardenException;
+use Sentinel\Exceptions\RoleWardenException;
+use Sentinel\Models\Permission;
+use Sentinel\Models\Role;
 
 class AssignRca extends Command
 {
     private $rolesLib;
+
     private $permissionsLib;
+
     private $bar;
 
     /**
@@ -25,60 +30,67 @@ class AssignRca extends Command
      *
      * @var string
      */
-    protected $description = 'Run Roles and Permissions assignment';
+    protected $description = 'Run Role and Permission assignments';
 
     /**
      * Execute the console command.
      */
     public function handle()
     {
-        $rolesLib = SentinelManager::getRolesLibNamespace();
-        $permissionsLib = SentinelManager::getPermissionsLibNamespace();
-        $this->info('Loading Sentinel roles and permissions...');
+        try {
+            DB::beginTransaction();
+            $rolesLib = SentinelManager::getRolesLibNamespace();
+            $permissionsLib = SentinelManager::getPermissionsLibNamespace();
+            $this->info('Loading Sentinel roles and permissions...');
 
-        if (empty($rolesLib)) {
-            $this->error('Role Warden class is not declared in the project!');
-            return false;
-        } else {
-            $this->rolesLib = new $rolesLib();
-        }
-        if (empty($permissionsLib)) {
-            $this->error('Permission Warden class is not declared in the project!');
-            return false;
-        } else {
-            $this->permissionsLib = new $permissionsLib();
-        }
-
-        $roles = $this->rolesLib::values();
-        $permissions = $this->permissionsLib::values();
-        $progressCount = count($roles) + count($permissions);
-        $this->bar = $this->output->createProgressBar($progressCount);
-        $this->bar->start();
-
-        $this->setRoles();
-        $this->setPermissions();
-
-        $this->bar->finish();
-        $this->info('Sentinel roles and permissions loaded successfully!');
-
-        $toDeletePermissions = Permission::whereNotIn('slug', $permissions)->get();
-        $toDeleteRoles = Role::whereNotIn('slug', $roles)->get();
-        $deletionRecords = $toDeletePermissions->count() + $toDeleteRoles->count();
-
-        if ($deletionRecords > 0) {
-            $this->info('Deleting outdated ' . $toDeletePermissions->count() . ' permissions and ' . $toDeleteRoles->count() . ' roles');
-            $bar = $this->output->createProgressBar($deletionRecords);
-            $bar->start();
-            foreach ($toDeletePermissions as $permission) {
-                $permission->delete();
-                $bar->advance();
+            if (empty($rolesLib)) {
+                throw new RoleWardenException;
+            } else {
+                $this->rolesLib = new $rolesLib;
             }
-            foreach ($toDeleteRoles as $role) {
-                $role->delete();
-                $bar->advance();
+            if (empty($permissionsLib)) {
+                throw new PermissionWardenException;
+            } else {
+                $this->permissionsLib = new $permissionsLib;
             }
-            $bar->finish();
-            $this->info('Outdated Sentinel roles and permissions deleted successfully!');
+
+            $roles = $this->rolesLib::values();
+            $permissions = $this->permissionsLib::values();
+            $progressCount = count($roles) + count($permissions);
+            $this->bar = $this->output->createProgressBar($progressCount);
+            $this->bar->start();
+
+            $this->setRoles();
+            $this->setPermissions();
+
+            $this->bar->finish();
+            $this->info('Sentinel roles and permissions loaded successfully!');
+
+            $toDeletePermissions = Permission::whereNotIn('slug', $permissions)->get();
+            $toDeleteRoles = Role::whereNotIn('slug', $roles)->get();
+            $deletionRecords = $toDeletePermissions->count() + $toDeleteRoles->count();
+
+            if ($deletionRecords > 0) {
+                $this->info('Deleting outdated '.$toDeletePermissions->count().' permissions and '.$toDeleteRoles->count().' roles');
+                $bar = $this->output->createProgressBar($deletionRecords);
+                $bar->start();
+                foreach ($toDeletePermissions as $permission) {
+                    $permission->delete();
+                    $bar->advance();
+                }
+                foreach ($toDeleteRoles as $role) {
+                    $role->delete();
+                    $bar->advance();
+                }
+                $bar->finish();
+                $this->info('Outdated Sentinel roles and permissions deleted successfully!');
+            }
+            DB::commit();
+
+            SentinelManager::flushCache();
+        } catch (\Exception $e) {
+            DB::rollBack();
+            $this->error($e->getMessage());
         }
     }
 

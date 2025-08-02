@@ -8,8 +8,27 @@ use Illuminate\Database\Eloquent\Relations\BelongsToMany;
 use Sentinel\Config\SentinelManager;
 use Sentinel\Config\Warden\PermissionWarden;
 use Sentinel\Exceptions\PermissionWardenException;
-use Sentinel\Models\Role;
 
+/**
+ * @property int $id
+ * @property string $slug
+ * @property int $assignable
+ * @property \Illuminate\Support\Carbon|null $created_at
+ * @property \Illuminate\Support\Carbon|null $updated_at
+ * @property-read \Illuminate\Database\Eloquent\Collection<int, \Sentinel\Models\Role> $roles
+ * @property-read int|null $roles_count
+ *
+ * @method static Builder<static>|Permission newModelQuery()
+ * @method static Builder<static>|Permission newQuery()
+ * @method static Builder<static>|Permission query()
+ * @method static Builder<static>|Permission whereAssignable($value)
+ * @method static Builder<static>|Permission whereCreatedAt($value)
+ * @method static Builder<static>|Permission whereId($value)
+ * @method static Builder<static>|Permission whereSlug($value)
+ * @method static Builder<static>|Permission whereUpdatedAt($value)
+ *
+ * @mixin \Eloquent
+ */
 class Permission extends Model
 {
     protected $table = 'permissions';
@@ -63,11 +82,11 @@ class Permission extends Model
         $value = SentinelManager::getPermissionsLibNamespace();
 
         $class = null;
-        if (!empty($value)) {
-            $class = new $value();
+        if (! empty($value)) {
+            $class = new $value;
         }
 
-        if (empty($value) || !($class instanceof PermissionWarden)) {
+        if (empty($value) || ! ($class instanceof PermissionWarden)) {
             throw new PermissionWardenException;
         }
 

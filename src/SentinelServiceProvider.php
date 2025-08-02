@@ -2,22 +2,19 @@
 
 namespace Sentinel;
 
-use Illuminate\Support\ServiceProvider;
-use Illuminate\View\Compilers\BladeCompiler;
+use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\Blade;
+use Illuminate\Support\Facades\Gate;
+use Illuminate\Support\Facades\Log;
+use Illuminate\Support\ServiceProvider;
 use Sentinel\Console\Commands\AssignRca;
 use Sentinel\Console\Commands\Generators\MakePermissionsLibCommand;
 use Sentinel\Console\Commands\Generators\MakeRolesLibCommand;
-use Illuminate\Support\Facades\Auth;
-use Illuminate\Support\Facades\Log;
 use Sentinel\Models\Permission;
-use Sentinel\Models\Role;
-use Illuminate\Support\Facades\Gate;
 
 /**
  * @author Damian Ułan <damian.ulan@protonmail.com>
  * @copyright 2025 damianulan
- * @package Sentinel
  * @license MIT
  */
 class SentinelServiceProvider extends ServiceProvider
@@ -27,7 +24,7 @@ class SentinelServiceProvider extends ServiceProvider
      */
     public function register(): void
     {
-        $this->mergeConfigFrom(__DIR__ . '/../config/sentinel.php', 'sentinel');
+        $this->mergeConfigFrom(__DIR__.'/../config/sentinel.php', 'sentinel');
     }
 
     /**
@@ -36,25 +33,25 @@ class SentinelServiceProvider extends ServiceProvider
     public function boot(): void
     {
 
-        $this->loadTranslationsFrom(__DIR__ . '/../lang', 'sentinel');
+        $this->loadTranslationsFrom(__DIR__.'/../lang', 'sentinel');
 
-        $this->loadMigrationsFrom(__DIR__ . '/../database/migrations');
+        $this->loadMigrationsFrom(__DIR__.'/../database/migrations');
 
         $this->publishesMigrations([
-            __DIR__ . '/../database/migrations' => database_path('migrations'),
+            __DIR__.'/../database/migrations' => database_path('migrations'),
         ]);
 
         $this->publishes([
-            __DIR__ . '/../lang'                   => $this->app->langPath('vendor/sentinel'),
+            __DIR__.'/../lang' => $this->app->langPath('vendor/sentinel'),
         ], 'sentinel-langs');
 
         $this->publishes([
-            __DIR__ . '/../config/sentinel.php'      => config_path('sentinel.php'),
+            __DIR__.'/../config/sentinel.php' => config_path('sentinel.php'),
         ], 'sentinel-config');
 
         $this->publishes([
-            __DIR__ . '/../stubs'                  => base_path('stubs'),
-            __DIR__ . '/../config/sentinel.php'      => config_path('sentinel.php'),
+            __DIR__.'/../stubs' => base_path('stubs'),
+            __DIR__.'/../config/sentinel.php' => config_path('sentinel.php'),
         ], 'sentinel');
 
         $this->registerCommands();
@@ -68,6 +65,7 @@ class SentinelServiceProvider extends ServiceProvider
             if ($user && $user instanceof \Sentinel\Traits\HasRolesAndPermissions) {
                 return Auth::user()->hasRole($role);
             }
+
             return false;
         });
 
@@ -82,7 +80,7 @@ class SentinelServiceProvider extends ServiceProvider
                 });
             });
         } catch (\Exception $e) {
-            Log::error(static::class . ' failed fetching permission: ' . $e->getMessage(), [
+            Log::error(static::class.' failed fetching permission: '.$e->getMessage(), [
                 'exception' => $e,
             ]);
         }
