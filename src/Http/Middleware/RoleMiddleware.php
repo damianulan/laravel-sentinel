@@ -6,7 +6,7 @@ use Closure;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Auth;
 
-class Role
+class RoleMiddleware
 {
     /**
      * Check role for authenticated user.

@@ -15,8 +15,8 @@ return new class extends Migration
     {
         Schema::create('permissions', function (Blueprint $table) {
             $table->id();
-            $table->string('slug')->unique();
-            $table->boolean('assignable')->default(true);
+            $table->string('slug')->unique()->comment("Permission shortname key.");
+            $table->boolean('assignable')->default(true)->comment("Determines if permission is assignable throughout the platform.");
             $table->timestamps();
         });
     }

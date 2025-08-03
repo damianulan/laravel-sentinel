@@ -41,7 +41,7 @@ class AssignRca extends Command
             DB::beginTransaction();
             $rolesLib = SentinelManager::getRolesLibNamespace();
             $permissionsLib = SentinelManager::getPermissionsLibNamespace();
-            $this->info('Loading Sentinel roles and permissions...');
+            $this->line('Loading Sentinel roles and permissions...');
 
             if (empty($rolesLib)) {
                 throw new RoleWardenException;
@@ -64,6 +64,7 @@ class AssignRca extends Command
             $this->setPermissions();
 
             $this->bar->finish();
+            $this->newLine();
             $this->info('Sentinel roles and permissions loaded successfully!');
 
             $toDeletePermissions = Permission::whereNotIn('slug', $permissions)->get();
@@ -71,7 +72,7 @@ class AssignRca extends Command
             $deletionRecords = $toDeletePermissions->count() + $toDeleteRoles->count();
 
             if ($deletionRecords > 0) {
-                $this->info('Deleting outdated '.$toDeletePermissions->count().' permissions and '.$toDeleteRoles->count().' roles');
+                $this->line('Deleting outdated '.$toDeletePermissions->count().' permissions and '.$toDeleteRoles->count().' roles');
                 $bar = $this->output->createProgressBar($deletionRecords);
                 $bar->start();
                 foreach ($toDeletePermissions as $permission) {
@@ -83,6 +84,7 @@ class AssignRca extends Command
                     $bar->advance();
                 }
                 $bar->finish();
+                $this->newLine();
                 $this->info('Outdated Sentinel roles and permissions deleted successfully!');
             }
             DB::commit();

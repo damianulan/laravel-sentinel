@@ -15,8 +15,8 @@ return new class extends Migration
     {
         Schema::create('roles', function (Blueprint $table) {
             $table->id();
-            $table->string('slug')->unique();
-            $table->boolean('assignable')->default(true);
+            $table->string('slug')->unique()->comment("Role shortname key.");
+            $table->boolean('assignable')->default(true)->comment("Determines if role is assignable throughout the platform.");
             $table->timestamps();
         });
     }

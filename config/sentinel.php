@@ -15,7 +15,7 @@ return [
      * choose whether role assigned models use uuids or not.
      * YOU SHOULD DECIDE ON THIS BEFORE MIGRATION
      */
-    'uuids' => true,
+    'uuids' => false,
 
     /**
      * Choose default context for Sentinel. This context will be used when
@@ -26,12 +26,18 @@ return [
     /**
      * Sentinel uses those models to determine Eloquent relations.
      * If you want to use your own models, you can specify them here.
-     * Your custom models must extend Sentinel ones.
+     * Your custom models must implement Sentinel contracts.
      */
     'models' => [
         'role' => Sentinel\Models\Role::class,
         'permission' => Sentinel\Models\Permission::class,
     ],
+
+    /**
+     * Here pass role slug that will be assigned with root privileges.
+     * User with this role will pass all role and permission checks.
+     */
+    'root' => 'root',
 
     /**
      * Sentinel uses cache to store roles and permissions datas in order to speed up

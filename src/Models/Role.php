@@ -7,6 +7,7 @@ use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsToMany;
 use Sentinel\Config\SentinelManager;
 use Sentinel\Config\Warden\RoleWarden;
+use Sentinel\Contracts\RoleContract;
 use Sentinel\Exceptions\RoleWardenException;
 
 /**
@@ -29,7 +30,7 @@ use Sentinel\Exceptions\RoleWardenException;
  *
  * @mixin \Eloquent
  */
-class Role extends Model
+class Role extends Model implements RoleContract
 {
     protected $table = 'roles';
 
@@ -48,10 +49,10 @@ class Role extends Model
 
     public function permissions(): BelongsToMany
     {
-        return $this->belongsToMany(Permission::class, 'roles_permissions');
+        return $this->belongsToMany(config('sentinel.models.permission'), 'roles_permissions');
     }
 
-    public static function findBySlug(string $slug): ?self
+    public static function findBySlug(string $slug): ?static
     {
         return self::whereSlug($slug)->first();
     }
@@ -59,8 +60,8 @@ class Role extends Model
     public static function getId(string $slug): ?string
     {
         $role = self::whereSlug($slug)->first();
-        if (isset($role->id)) {
-            return $role->id;
+        if ($role->getKey() !== null) {
+            return $role->getKey();
         }
 
         return null;
@@ -80,9 +81,9 @@ class Role extends Model
         return $output;
     }
 
-    public function scopeWhereSlug(Builder $query, string $slug): void
+    public function scopeWhereSlug(Builder $query, ...$slugs): void
     {
-        $query->where('slug', $slug);
+        $query->whereIn('slug', $slugs);
     }
 
     public function scopeWhereAssignable(Builder $query): void

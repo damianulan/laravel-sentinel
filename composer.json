@@ -26,7 +26,8 @@
   "require-dev": {
     "mockery/mockery": "^1.5",
     "phpunit/phpunit": "^11.0|^12.0",
-    "laravel/pint": "^1.0"
+    "laravel/pint": "^1.0",
+    "larastan/larastan": "^3.0"
   },
   "suggest": {
     "laravel/framework": "^11.0"

@@ -2,12 +2,12 @@
 
 namespace Sentinel\Contexts;
 
-class System
-{
-    public $id;
+use Sentinel\Contracts\DefaultContext;
 
-    public function __construct()
+class System implements DefaultContext
+{
+    public function getKey(): int
     {
-        $this->id = 0;
+        return 0;
     }
 }

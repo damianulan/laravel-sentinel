@@ -5,13 +5,24 @@ namespace Sentinel\Config\Warden;
 class Warden
 {
     /**
-     * Returns a list of all enum values.
+     * Define additional roles/permissions that are not declared as constants.
+     */
+    public static function items(): array
+    {
+        return [];
+    }
+
+    /**
+     * Returns a list of all role/permission values.
      *
      * @return array<int, string|int>
      */
-    public static function values(): array
+    final public static function values(): array
     {
-        return array_values(static::cases());
+        $cases = array_values(static::cases());
+        $items = array_values(static::items());
+
+        return array_unique(array_merge($cases, $items));
     }
 
     /**
@@ -31,7 +42,7 @@ class Warden
      *
      * @return array<string, string|int>
      */
-    public static function cases(): array
+    final public static function cases(): array
     {
         $class = static::class;
         $reflection = new \ReflectionClass($class);

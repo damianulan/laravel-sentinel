@@ -11,6 +11,7 @@ use Sentinel\Console\Commands\AssignRca;
 use Sentinel\Console\Commands\Generators\MakePermissionsLibCommand;
 use Sentinel\Console\Commands\Generators\MakeRolesLibCommand;
 use Sentinel\Models\Permission;
+use Sentinel\Traits\HasRolesAndPermissions;
 
 /**
  * @author Damian Ułan <damian.ulan@protonmail.com>
@@ -62,21 +63,30 @@ class SentinelServiceProvider extends ServiceProvider
     {
         Blade::if('role', function ($role) {
             $user = Auth::user();
-            if ($user && $user instanceof \Sentinel\Traits\HasRolesAndPermissions) {
-                return Auth::user()->hasRole($role);
+            if ($user && class_uses_trait(HasRolesAndPermissions::class, $user::class)) {
+                return $user->hasRole($role);
             }
 
             return false;
         });
 
         Blade::if('admin', function () {
-            return Auth::user()->isAdmin();
+            $user = Auth::user();
+            if ($user && class_uses_trait(HasRolesAndPermissions::class, $user::class)) {
+                return $user->isAdmin();
+            }
+
+            return false;
         });
 
         try {
             Permission::get()->map(function ($permission) {
                 Gate::define($permission->slug, function ($user, $context = null) use ($permission) {
-                    return $user->hasPermissionTo($permission, $context);
+                    if ($user && class_uses_trait(HasRolesAndPermissions::class, $user::class)) {
+                        return $user->hasPermissionTo($permission, $context);
+                    }
+
+                    return false;
                 });
             });
         } catch (\Exception $e) {
@@ -84,6 +94,14 @@ class SentinelServiceProvider extends ServiceProvider
                 'exception' => $e,
             ]);
         }
+
+        Gate::before(function ($user, string $ability) {
+            if ($user && class_uses_trait(HasRolesAndPermissions::class, $user::class)) {
+                if ($user->isRoot()) {
+                    return true;
+                }
+            }
+        });
     }
 
     public function registerCommands(): void
