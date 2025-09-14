@@ -157,7 +157,7 @@ trait HasRolesAndPermissions
      */
     public function hasPermission(PermissionContract $permission)
     {
-        return (bool) $this->permissions->where('slug', $permission->slug)->exists();
+        return (bool) $this->permissions->where('slug', $permission->slug)->count();
     }
 
     /**

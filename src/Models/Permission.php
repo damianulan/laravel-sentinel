@@ -12,13 +12,12 @@ use Sentinel\Exceptions\PermissionWardenException;
 
 /**
  * @property int $id
- * @property string $slug
- * @property int $assignable
+ * @property string $slug Permission shortname key.
+ * @property int $assignable Determines if permission is assignable throughout the platform.
  * @property \Illuminate\Support\Carbon|null $created_at
  * @property \Illuminate\Support\Carbon|null $updated_at
  * @property-read \Illuminate\Database\Eloquent\Collection<int, \Sentinel\Models\Role> $roles
  * @property-read int|null $roles_count
- *
  * @method static Builder<static>|Permission newModelQuery()
  * @method static Builder<static>|Permission newQuery()
  * @method static Builder<static>|Permission query()
@@ -27,7 +26,6 @@ use Sentinel\Exceptions\PermissionWardenException;
  * @method static Builder<static>|Permission whereId($value)
  * @method static Builder<static>|Permission whereSlug($value)
  * @method static Builder<static>|Permission whereUpdatedAt($value)
- *
  * @mixin \Eloquent
  */
 class Permission extends Model implements PermissionContract

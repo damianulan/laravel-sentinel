@@ -12,13 +12,12 @@ use Sentinel\Exceptions\RoleWardenException;
 
 /**
  * @property int $id
- * @property string $slug
- * @property bool $assignable
+ * @property string $slug Role shortname key.
+ * @property bool $assignable Determines if role is assignable throughout the platform.
  * @property \Illuminate\Support\Carbon|null $created_at
  * @property \Illuminate\Support\Carbon|null $updated_at
  * @property-read \Illuminate\Database\Eloquent\Collection<int, \Sentinel\Models\Permission> $permissions
  * @property-read int|null $permissions_count
- *
  * @method static Builder<static>|Role newModelQuery()
  * @method static Builder<static>|Role newQuery()
  * @method static Builder<static>|Role query()
@@ -27,7 +26,6 @@ use Sentinel\Exceptions\RoleWardenException;
  * @method static Builder<static>|Role whereId($value)
  * @method static Builder<static>|Role whereSlug($value)
  * @method static Builder<static>|Role whereUpdatedAt($value)
- *
  * @mixin \Eloquent
  */
 class Role extends Model implements RoleContract
