@@ -61,9 +61,10 @@ trait HasRolesAndPermissions
      */
     public function roleAssignments(): DBBuilder
     {
-        $builder = DB::table('has_roles')->where('model_id', $this->id, 'model_type', $this->getMorphClass());
-
-        return $builder;
+        return DB::table('has_roles')->where([
+            'model_id' => $this->id,
+            'model_type' => $this->getMorphClass()
+        ]);
     }
 
     public function permissions(): MorphToMany
