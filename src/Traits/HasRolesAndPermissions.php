@@ -165,14 +165,6 @@ trait HasRolesAndPermissions
      * Check if user has a certain permission (direct or through role). Give model context if needed.
      * Use "permission-*" syntax to check for multiple permissions of given category.
      *
-     * @param  mixed  $context
-     * @return bool
-     */
-
-    /**
-     * Check if user has a certain permission (direct or through role). Give model context if needed.
-     * Use "permission-*" syntax to check for multiple permissions of given category.
-     *
      * @param \Sentinel\Contracts\PermissionContract|string $permission
      * @param mixed                                         $context
      * @return bool
