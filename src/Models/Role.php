@@ -58,7 +58,7 @@ class Role extends Model implements RoleContract
     public static function getId(string $slug): ?string
     {
         $role = self::whereSlug($slug)->first();
-        if ($role->getKey() !== null) {
+        if ($role && $role->getKey() !== null) {
             return $role->getKey();
         }
 
@@ -71,7 +71,7 @@ class Role extends Model implements RoleContract
         $roles = self::where('assignable', 1)->get();
         if (! $roles->isEmpty()) {
             foreach ($roles as $role) {
-                $name = __('gates.roles.'.$role->slug);
+                $name = __('gates.roles.' . $role->slug);
                 $output[$role->id] = $name;
             }
         }
