@@ -361,7 +361,9 @@ trait HasRolesAndPermissions
         $additional['context_type'] = $context::class;
         $additional['context_id'] = $context->getKey();
 
-        $this->roles()->attach($role, $additional);
+        if (!$this->roles()->where('context_type', $additional['context_type'])->where('context_id', $additional['context_id'])->where('role_id', $role->id)->exists()) {
+            $this->roles()->attach($role, $additional);
+        }
     }
 
     /**
