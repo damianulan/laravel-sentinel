@@ -8,11 +8,6 @@ use Illuminate\Database\Eloquent\Relations\BelongsToMany;
 interface PermissionContract
 {
     /**
-     * Returns roles that have this permission assigned.
-     */
-    public function roles(): BelongsToMany;
-
-    /**
      * Finds permission instance by its slug istead of its key.
      */
     public static function findBySlug(string $slug): ?static;
@@ -21,6 +16,11 @@ interface PermissionContract
      * Get a list of assignable permissions by their slugs.
      */
     public static function getSelectList(): array;
+
+    /**
+     * Returns roles that have this permission assigned.
+     */
+    public function roles(): BelongsToMany;
 
     /**
      * Get permissions by their slugs.

@@ -2,6 +2,8 @@
 
 namespace Sentinel\Config\Warden;
 
+use ReflectionClass;
+
 class Warden
 {
     /**
@@ -45,7 +47,7 @@ class Warden
     final public static function cases(): array
     {
         $class = static::class;
-        $reflection = new \ReflectionClass($class);
+        $reflection = new ReflectionClass($class);
 
         return $reflection->getConstants();
     }

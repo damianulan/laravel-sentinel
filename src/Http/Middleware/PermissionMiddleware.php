@@ -17,7 +17,7 @@ class PermissionMiddleware
      */
     public function handle(Request $request, Closure $next, $permission, $context = null)
     {
-        if (! Auth::check() || Auth::user()->cannot($permission, $context)) {
+        if ( ! Auth::check() || Auth::user()->cannot($permission, $context)) {
             abort(403);
         }
 

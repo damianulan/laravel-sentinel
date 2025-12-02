@@ -2,6 +2,7 @@
 
 namespace Sentinel;
 
+use Exception;
 use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\Blade;
 use Illuminate\Support\Facades\Gate;
@@ -25,7 +26,7 @@ class SentinelServiceProvider extends ServiceProvider
      */
     public function register(): void
     {
-        $this->mergeConfigFrom(__DIR__.'/../config/sentinel.php', 'sentinel');
+        $this->mergeConfigFrom(__DIR__ . '/../config/sentinel.php', 'sentinel');
     }
 
     /**
@@ -34,29 +35,40 @@ class SentinelServiceProvider extends ServiceProvider
     public function boot(): void
     {
 
-        $this->loadTranslationsFrom(__DIR__.'/../lang', 'sentinel');
+        $this->loadTranslationsFrom(__DIR__ . '/../lang', 'sentinel');
 
-        $this->loadMigrationsFrom(__DIR__.'/../database/migrations');
+        $this->loadMigrationsFrom(__DIR__ . '/../database/migrations');
 
         $this->publishesMigrations([
-            __DIR__.'/../database/migrations' => database_path('migrations'),
+            __DIR__ . '/../database/migrations' => database_path('migrations'),
         ]);
 
         $this->publishes([
-            __DIR__.'/../lang' => $this->app->langPath('vendor/sentinel'),
+            __DIR__ . '/../lang' => $this->app->langPath('vendor/sentinel'),
         ], 'sentinel-langs');
 
         $this->publishes([
-            __DIR__.'/../config/sentinel.php' => config_path('sentinel.php'),
+            __DIR__ . '/../config/sentinel.php' => config_path('sentinel.php'),
         ], 'sentinel-config');
 
         $this->publishes([
-            __DIR__.'/../stubs' => base_path('stubs'),
-            __DIR__.'/../config/sentinel.php' => config_path('sentinel.php'),
+            __DIR__ . '/../stubs' => base_path('stubs'),
+            __DIR__ . '/../config/sentinel.php' => config_path('sentinel.php'),
         ], 'sentinel');
 
         $this->registerCommands();
         $this->bootRolesAndPermissions();
+    }
+
+    public function registerCommands(): void
+    {
+        if ($this->app->runningInConsole()) {
+            $this->commands([
+                AssignRca::class,
+                MakePermissionsLibCommand::class,
+                MakeRolesLibCommand::class,
+            ]);
+        }
     }
 
     private function bootRolesAndPermissions(): void
@@ -80,7 +92,7 @@ class SentinelServiceProvider extends ServiceProvider
         });
 
         try {
-            Permission::get()->map(function ($permission) {
+            Permission::get()->map(function ($permission): void {
                 Gate::define($permission->slug, function ($user, $context = null) use ($permission) {
                     if ($user && class_uses_trait(HasRolesAndPermissions::class, $user::class)) {
                         return $user->hasPermissionTo($permission, $context);
@@ -89,8 +101,8 @@ class SentinelServiceProvider extends ServiceProvider
                     return false;
                 });
             });
-        } catch (\Exception $e) {
-            Log::error(static::class.' failed fetching permission: '.$e->getMessage(), [
+        } catch (Exception $e) {
+            Log::error(static::class . ' failed fetching permission: ' . $e->getMessage(), [
                 'exception' => $e,
             ]);
         }
@@ -102,16 +114,5 @@ class SentinelServiceProvider extends ServiceProvider
                 }
             }
         });
-    }
-
-    public function registerCommands(): void
-    {
-        if ($this->app->runningInConsole()) {
-            $this->commands([
-                AssignRca::class,
-                MakePermissionsLibCommand::class,
-                MakeRolesLibCommand::class,
-            ]);
-        }
     }
 }

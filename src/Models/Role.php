@@ -3,8 +3,10 @@
 namespace Sentinel\Models;
 
 use Illuminate\Database\Eloquent\Builder;
+use Illuminate\Database\Eloquent\Collection;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsToMany;
+use Illuminate\Support\Carbon;
 use Sentinel\Config\SentinelManager;
 use Sentinel\Config\Warden\RoleWarden;
 use Sentinel\Contracts\RoleContract;
@@ -14,10 +16,11 @@ use Sentinel\Exceptions\RoleWardenException;
  * @property int $id
  * @property string $slug Role shortname key.
  * @property bool $assignable Determines if role is assignable throughout the platform.
- * @property \Illuminate\Support\Carbon|null $created_at
- * @property \Illuminate\Support\Carbon|null $updated_at
- * @property-read \Illuminate\Database\Eloquent\Collection<int, \Sentinel\Models\Permission> $permissions
+ * @property Carbon|null $created_at
+ * @property Carbon|null $updated_at
+ * @property-read Collection<int, Permission> $permissions
  * @property-read int|null $permissions_count
+ *
  * @method static Builder<static>|Role newModelQuery()
  * @method static Builder<static>|Role newQuery()
  * @method static Builder<static>|Role query()
@@ -26,15 +29,16 @@ use Sentinel\Exceptions\RoleWardenException;
  * @method static Builder<static>|Role whereId($value)
  * @method static Builder<static>|Role whereSlug($value)
  * @method static Builder<static>|Role whereUpdatedAt($value)
+ *
  * @mixin \Eloquent
  */
 class Role extends Model implements RoleContract
 {
+    public $timestamps = true;
+
     protected $table = 'roles';
 
     protected $primaryKey = 'id';
-
-    public $timestamps = true;
 
     protected $fillable = [
         'slug',
@@ -45,11 +49,6 @@ class Role extends Model implements RoleContract
         'assignable' => 'boolean',
     ];
 
-    public function permissions(): BelongsToMany
-    {
-        return $this->belongsToMany(config('sentinel.models.permission'), 'roles_permissions');
-    }
-
     public static function findBySlug(string $slug): ?static
     {
         return self::whereSlug($slug)->first();
@@ -58,7 +57,7 @@ class Role extends Model implements RoleContract
     public static function getId(string $slug): ?string
     {
         $role = self::whereSlug($slug)->first();
-        if ($role && $role->getKey() !== null) {
+        if ($role && null !== $role->getKey()) {
             return $role->getKey();
         }
 
@@ -69,7 +68,7 @@ class Role extends Model implements RoleContract
     {
         $output = [];
         $roles = self::where('assignable', 1)->get();
-        if (! $roles->isEmpty()) {
+        if ( ! $roles->isEmpty()) {
             foreach ($roles as $role) {
                 $name = __('gates.roles.' . $role->slug);
                 $output[$role->id] = $name;
@@ -77,6 +76,27 @@ class Role extends Model implements RoleContract
         }
 
         return $output;
+    }
+
+    public static function getRolesLib()
+    {
+        $value = SentinelManager::getRolesLibNamespace();
+
+        $class = null;
+        if ( ! empty($value)) {
+            $class = new $value();
+        }
+
+        if (empty($value) || ! ($class instanceof RoleWarden)) {
+            throw new RoleWardenException();
+        }
+
+        return $class;
+    }
+
+    public function permissions(): BelongsToMany
+    {
+        return $this->belongsToMany(config('sentinel.models.permission'), 'roles_permissions');
     }
 
     public function scopeWhereSlug(Builder $query, ...$slugs): void
@@ -87,21 +107,5 @@ class Role extends Model implements RoleContract
     public function scopeWhereAssignable(Builder $query): void
     {
         $query->where('assignable', 1);
-    }
-
-    public static function getRolesLib()
-    {
-        $value = SentinelManager::getRolesLibNamespace();
-
-        $class = null;
-        if (! empty($value)) {
-            $class = new $value;
-        }
-
-        if (empty($value) || ! ($class instanceof RoleWarden)) {
-            throw new RoleWardenException;
-        }
-
-        return $class;
     }
 }

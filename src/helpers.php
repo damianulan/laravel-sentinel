@@ -1,6 +1,6 @@
 <?php
 
-if (! function_exists('class_uses_trait')) {
+if ( ! function_exists('class_uses_trait')) {
     /**
      * Checks if trait is used by a target class.
      * It recurses through the whole class inheritance tree.

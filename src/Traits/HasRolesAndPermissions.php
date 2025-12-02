@@ -2,7 +2,7 @@
 
 namespace Sentinel\Traits;
 
-use Barryvdh\LaravelIdeHelper\Eloquent;
+use Exception;
 use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Database\Eloquent\Collection as EloquentCollection;
 use Illuminate\Database\Eloquent\Model;
@@ -36,24 +36,13 @@ trait HasRolesAndPermissions
         $relation = $this->morphToMany($role_class, 'model', 'has_roles');
         if ($context && $context instanceof Model) {
             $system_context = $this->getDefaultContext();
-            $relation = $this->morphToMany($role_class, 'model', 'has_roles')->where(function (Builder $q) use ($context, $system_context) {
+            $relation = $this->morphToMany($role_class, 'model', 'has_roles')->where(function (Builder $q) use ($context, $system_context): void {
                 $q->where(['context_type' => $context::class, 'context_id' => $context->getKey()])
                     ->orWhere(['context_type' => $system_context::class]);
             });
         }
 
         return $relation;
-    }
-
-    private function getDefaultContext(): DefaultContext
-    {
-        $sys = config('sentinel.default_context');
-        $context = new $sys;
-        if (! $context instanceof DefaultContext) {
-            throw new \Exception('Default context must implement ' . DefaultContext::class);
-        }
-
-        return $context;
     }
 
     /**
@@ -63,7 +52,7 @@ trait HasRolesAndPermissions
     {
         return DB::table('has_roles')->where([
             'model_id' => $this->id,
-            'model_type' => $this->getMorphClass()
+            'model_type' => $this->getMorphClass(),
         ]);
     }
 
@@ -74,8 +63,6 @@ trait HasRolesAndPermissions
 
     /**
      * Returns a Colletion of slugs with user roles being assigned to him.
-     *
-     * @return \Illuminate\Database\Eloquent\Collection
      */
     public function getRoles(): EloquentCollection
     {
@@ -84,13 +71,11 @@ trait HasRolesAndPermissions
 
     /**
      * Returns a Colletion of user's roles names based on langs.
-     *
-     * @return \Illuminate\Support\Collection
      */
     public function getRolesNames(): Collection
     {
         $slugs = $this->roles->pluck('slug')->unique();
-        $roles = new Collection;
+        $roles = new Collection();
         $langs = Role::getRolesLib()::labels();
         foreach ($slugs as $slug) {
             $lang = $langs[$slug] ?? $slug;
@@ -104,28 +89,22 @@ trait HasRolesAndPermissions
      * Check if has given role.
      *
      * @param  string  $slug  - role slug
-     * @return bool
      */
     public function hasRole(string $slug): bool
     {
-        if ($this->roles->contains('slug', $slug)) {
-            return true;
-        }
-
-        return false;
+        return (bool) ($this->roles->contains('slug', $slug));
     }
 
     /**
      * Check if has all of given roles.
      *
      * @param  array  $roles  - role slugs
-     * @return bool
      */
     public function hasRoles(array $roles): bool
     {
         $result = true;
         foreach ($roles as $role) {
-            if (! $this->hasRole($role)) {
+            if ( ! $this->hasRole($role)) {
                 $result = false;
             }
         }
@@ -137,7 +116,6 @@ trait HasRolesAndPermissions
      * Check if has any of given roles.
      *
      * @param  array  $roles  - role slugs
-     * @return bool
      */
     public function hasAnyRoles(array $roles): bool
     {
@@ -153,7 +131,6 @@ trait HasRolesAndPermissions
     /**
      * Checks if has given permission.
      *
-     * @param \Sentinel\Contracts\PermissionContract $permission
      * @return bool
      */
     public function hasPermission(PermissionContract $permission)
@@ -165,8 +142,7 @@ trait HasRolesAndPermissions
      * Check if user has a certain permission (direct or through role). Give model context if needed.
      * Use "permission-*" syntax to check for multiple permissions of given category.
      *
-     * @param \Sentinel\Contracts\PermissionContract|string $permission
-     * @param mixed                                         $context
+     * @param  mixed  $context
      * @return bool
      */
     public function hasPermissionTo(PermissionContract|string $permission, $context = null)
@@ -190,9 +166,7 @@ trait HasRolesAndPermissions
     }
 
     /**
-     * @param \Sentinel\Contracts\PermissionContract $permission
-     * @param mixed                                  $context
-     * @return bool
+     * @param  mixed  $context
      */
     public function hasPermissionThroughRole(PermissionContract $permission, $context = null): bool
     {
@@ -209,8 +183,7 @@ trait HasRolesAndPermissions
     /**
      * Get all permissions by their slugs.
      *
-     * @param array $permissions - array containing permission slugs
-     * @return \Illuminate\Database\Eloquent\Collection
+     * @param  array  $permissions  - array containing permission slugs
      */
     public function getAllPermissions(array $permissions): EloquentCollection
     {
@@ -222,13 +195,12 @@ trait HasRolesAndPermissions
     /**
      * Assign direct permissions.
      *
-     * @param mixed ...$permissions slugs
-     * @return static
+     * @param  mixed  ...$permissions  slugs
      */
     public function givePermissionsTo(...$permissions): static
     {
         $permissions = $this->getAllPermissions($permissions);
-        if ($permissions === null) {
+        if (null === $permissions) {
             return $this;
         }
         $this->permissions()->saveMany($permissions);
@@ -239,8 +211,7 @@ trait HasRolesAndPermissions
     /**
      * Unassign direct permissions.
      *
-     * @param mixed ...$permissions slugs
-     * @return static
+     * @param  mixed  ...$permissions  slugs
      */
     public function deletePermissions(...$permissions): static
     {
@@ -253,8 +224,7 @@ trait HasRolesAndPermissions
     /**
      * Refresh permission assignments with their slugs.
      *
-     * @param mixed ...$permissions slugs
-     * @return static
+     * @param  mixed  ...$permissions  slugs
      */
     public function refreshPermissions(...$permissions): static
     {
@@ -266,14 +236,12 @@ trait HasRolesAndPermissions
     /**
      * Assign role by its slug.
      *
-     * @param \Sentinel\Contracts\RoleContract|string $slug
-     * @param mixed                                   $context
-     * @return void
+     * @param  mixed  $context
      */
     public function assignRoleSlug(RoleContract|string $slug, $context = null): void
     {
         $role_class = config('sentinel.models.role');
-        if (! $slug instanceof RoleContract) {
+        if ( ! $slug instanceof RoleContract) {
             $role = $role_class::findBySlug($slug);
         }
         if ($role) {
@@ -286,12 +254,11 @@ trait HasRolesAndPermissions
      *
      * @param  mixed  $role_id
      * @param  mixed  $context
-     * @return void
      */
     public function assignRole($role_id, $context = null): void
     {
         $role_class = config('sentinel.models.role');
-        if (! $role_id instanceof RoleContract) {
+        if ( ! $role_id instanceof RoleContract) {
             $role = $role_class::find($role_id);
         } else {
             $role = $role_id;
@@ -305,14 +272,12 @@ trait HasRolesAndPermissions
     /**
      * Revoke role by its slug.
      *
-     * @param \Sentinel\Contracts\RoleContract|string $slug
-     * @param mixed                                   $context
-     * @return void
+     * @param  mixed  $context
      */
     public function revokeRoleSlug(RoleContract|string $slug, $context = null): void
     {
         $role_class = config('sentinel.models.role');
-        if (! $slug instanceof RoleContract) {
+        if ( ! $slug instanceof RoleContract) {
             $role = $role_class::findBySlug($slug);
         } else {
             $role = $slug;
@@ -328,12 +293,11 @@ trait HasRolesAndPermissions
      *
      * @param  mixed  $role_id
      * @param  mixed  $context
-     * @return void
      */
     public function revokeRole($role_id, $context = null): void
     {
         $role_class = config('sentinel.models.role');
-        if (! $role_id instanceof RoleContract) {
+        if ( ! $role_id instanceof RoleContract) {
             $role = $role_class::find($role_id);
         } else {
             $role = $role_id;
@@ -345,67 +309,20 @@ trait HasRolesAndPermissions
     }
 
     /**
-     * Assign role by type context.
-     *
-     * @param \Sentinel\Contracts\RoleContract $role
-     * @param mixed                            $context
-     * @return void
-     */
-    private function assignRoleType(RoleContract $role, $context = null): void
-    {
-        $additional = [];
-
-        if (! $context || ! ($context instanceof Model)) {
-            $context = $this->getDefaultContext();
-        }
-        $additional['context_type'] = $context::class;
-        $additional['context_id'] = $context->getKey();
-
-        if (!$this->roles()->where('context_type', $additional['context_type'])->where('context_id', $additional['context_id'])->where('role_id', $role->id)->exists()) {
-            $this->roles()->attach($role, $additional);
-        }
-    }
-
-    /**
-     * Revoking role by type context.
-     *
-     * @param \Sentinel\Contracts\RoleContract $role
-     * @param mixed                            $context
-     * @return void
-     */
-    private function revokeRoleType(RoleContract $role, $context = null): void
-    {
-        $additional = [];
-
-        if (! $context || ! ($context instanceof Model)) {
-            $context = $this->getDefaultContext();
-        }
-        $additional['context_type'] = $context::class;
-        $additional['context_id'] = $context->getKey();
-
-        $this->roles()->detach($role, $additional);
-    }
-
-    /**
      * Refresh role assignments.
      *
      * @param  mixed  $roles_ids
-     * @return void
      */
     public function refreshRole($roles_ids = null): void
     {
-        if (! $roles_ids) {
+        if ( ! $roles_ids) {
             $roles_ids = [];
         }
 
         $current = $this->roles()->where('assignable', 1)->get()->pluck('id')->toArray();
 
-        $toDelete = array_filter($current, function ($value) use ($roles_ids) {
-            return ! in_array($value, $roles_ids);
-        });
-        $toAdd = array_filter($roles_ids, function ($value) use ($current) {
-            return ! in_array($value, $current);
-        });
+        $toDelete = array_filter($current, fn ($value) => ! in_array($value, $roles_ids));
+        $toAdd = array_filter($roles_ids, fn ($value) => ! in_array($value, $current));
 
         foreach ($toDelete as $role_id) {
             $this->revokeRole($role_id);
@@ -413,32 +330,6 @@ trait HasRolesAndPermissions
         foreach ($toAdd as $role_id) {
             $this->assignRole($role_id);
         }
-    }
-
-    private function getMultiplePermissions(string $permission): array
-    {
-        $permissions = [];
-        $m = [];
-        $str = Str::of($permission);
-        $perm_class = config('sentinel.models.permission');
-        if ($str->contains('-*')) {
-            $needle = $str->beforeLast('-*');
-            $all = array_keys(Permission::getPermissionsLib()::assignable());
-            $matches = array_filter($all, function ($value) use ($needle) {
-                return Str::of($value)->contains($needle);
-            });
-            if (! empty($matches)) {
-                $m = $perm_class::whereIn('slug', $matches)->get();
-            }
-        } else {
-            $m = $perm_class::whereIn('slug', [$permission])->get();
-        }
-
-        if (! empty($m)) {
-            $permissions = $m->all();
-        }
-
-        return $permissions;
     }
 
     /**
@@ -464,7 +355,7 @@ trait HasRolesAndPermissions
      */
     protected function scopeWithRole(Builder $query, ...$slugs): void
     {
-        $query->whereHas('roles', function (Builder $q) use ($slugs) {
+        $query->whereHas('roles', function (Builder $q) use ($slugs): void {
             $q->whereIn('slug', $slugs);
         });
     }
@@ -476,18 +367,91 @@ trait HasRolesAndPermissions
      */
     protected function scopeWithPermission(Builder $query, ...$slugs): void
     {
-        $query->where(function (Builder $q) use ($slugs) {
-            $q->where(function (Builder $q) use ($slugs) {
-                $q->whereHas('permissions', function (Builder $q) use ($slugs) {
+        $query->where(function (Builder $q) use ($slugs): void {
+            $q->where(function (Builder $q) use ($slugs): void {
+                $q->whereHas('permissions', function (Builder $q) use ($slugs): void {
                     $q->where('slug', $slugs);
                 });
-            })->orWhere(function (Builder $q) use ($slugs) {
-                $q->whereHas('roles', function (Builder $q) use ($slugs) {
-                    $q->whereHas('permissions', function (Builder $q) use ($slugs) {
+            })->orWhere(function (Builder $q) use ($slugs): void {
+                $q->whereHas('roles', function (Builder $q) use ($slugs): void {
+                    $q->whereHas('permissions', function (Builder $q) use ($slugs): void {
                         $q->where('slug', $slugs);
                     });
                 });
             });
         });
+    }
+
+    private function getDefaultContext(): DefaultContext
+    {
+        $sys = config('sentinel.default_context');
+        $context = new $sys();
+        if ( ! $context instanceof DefaultContext) {
+            throw new Exception('Default context must implement ' . DefaultContext::class);
+        }
+
+        return $context;
+    }
+
+    /**
+     * Assign role by type context.
+     *
+     * @param  mixed  $context
+     */
+    private function assignRoleType(RoleContract $role, $context = null): void
+    {
+        $additional = [];
+
+        if ( ! $context || ! ($context instanceof Model)) {
+            $context = $this->getDefaultContext();
+        }
+        $additional['context_type'] = $context::class;
+        $additional['context_id'] = $context->getKey();
+
+        if ( ! $this->roles()->where('context_type', $additional['context_type'])->where('context_id', $additional['context_id'])->where('role_id', $role->id)->exists()) {
+            $this->roles()->attach($role, $additional);
+        }
+    }
+
+    /**
+     * Revoking role by type context.
+     *
+     * @param  mixed  $context
+     */
+    private function revokeRoleType(RoleContract $role, $context = null): void
+    {
+        $additional = [];
+
+        if ( ! $context || ! ($context instanceof Model)) {
+            $context = $this->getDefaultContext();
+        }
+        $additional['context_type'] = $context::class;
+        $additional['context_id'] = $context->getKey();
+
+        $this->roles()->detach($role, $additional);
+    }
+
+    private function getMultiplePermissions(string $permission): array
+    {
+        $permissions = [];
+        $m = [];
+        $str = Str::of($permission);
+        $perm_class = config('sentinel.models.permission');
+        if ($str->contains('-*')) {
+            $needle = $str->beforeLast('-*');
+            $all = array_keys(Permission::getPermissionsLib()::assignable());
+            $matches = array_filter($all, fn ($value) => Str::of($value)->contains($needle));
+            if ( ! empty($matches)) {
+                $m = $perm_class::whereIn('slug', $matches)->get();
+            }
+        } else {
+            $m = $perm_class::whereIn('slug', [$permission])->get();
+        }
+
+        if ( ! empty($m)) {
+            $permissions = $m->all();
+        }
+
+        return $permissions;
     }
 }

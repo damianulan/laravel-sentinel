@@ -1,5 +1,9 @@
 <?php
 
+use Sentinel\Contexts\System;
+use Sentinel\Models\Permission;
+use Sentinel\Models\Role;
+
 return [
 
     /*
@@ -21,7 +25,7 @@ return [
      * Choose default context for Sentinel. This context will be used when
      * creating new roles and permissions that don't have context specified.
      */
-    'default_context' => Sentinel\Contexts\System::class,
+    'default_context' => System::class,
 
     /**
      * Sentinel uses those models to determine Eloquent relations.
@@ -29,8 +33,8 @@ return [
      * Your custom models must implement Sentinel contracts.
      */
     'models' => [
-        'role' => Sentinel\Models\Role::class,
-        'permission' => Sentinel\Models\Permission::class,
+        'role' => Role::class,
+        'permission' => Permission::class,
     ],
 
     /**
