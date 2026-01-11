@@ -130,6 +130,7 @@ trait HasRolesAndPermissions
 
     /**
      * Checks if has given permission.
+     * Please note, it does not verify the context - to check the context and verify with role, use hasPermissionTo instead.
      *
      * @return bool
      */
@@ -156,7 +157,7 @@ trait HasRolesAndPermissions
         $result = false;
 
         foreach ($permissions as $p) {
-            $result = $this->hasPermissionThroughRole($p, $context) || $this->hasPermission($p);
+            $result = $context ? $this->hasPermissionThroughRole($p, $context) : $this->hasPermission($p);
             if ($result) {
                 break;
             }
