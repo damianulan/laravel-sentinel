@@ -91,6 +91,8 @@ class SentinelServiceProvider extends ServiceProvider
             return false;
         });
 
+        Blade::if('root', fn () => Auth::user()->hasRole(config('sentinel.root')));
+
         try {
             Permission::get()->map(function ($permission): void {
                 Gate::define($permission->slug, function ($user, $context = null) use ($permission) {
