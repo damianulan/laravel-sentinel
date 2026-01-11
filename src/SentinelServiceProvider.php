@@ -95,9 +95,10 @@ class SentinelServiceProvider extends ServiceProvider
             Permission::get()->map(function ($permission): void {
                 Gate::define($permission->slug, function ($user, $context = null) use ($permission) {
                     if ($user && class_uses_trait(HasRolesAndPermissions::class, $user::class)) {
-                        if($user->hasRole(config('sentinel.root'))){
+                        if ($user->hasRole(config('sentinel.root'))) {
                             return true;
                         }
+
                         return $user->hasPermissionTo($permission, $context);
                     }
 
