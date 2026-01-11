@@ -157,7 +157,7 @@ trait HasRolesAndPermissions
         $result = false;
 
         foreach ($permissions as $p) {
-            $result = $context ? $this->hasPermissionThroughRole($p, $context) : $this->hasPermission($p);
+            $result = $context ? $this->hasPermissionThroughRole($p, $context) : $this->hasPermissionThroughRole($p) || $this->hasPermission($p);
             if ($result) {
                 break;
             }
