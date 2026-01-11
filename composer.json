@@ -1,7 +1,7 @@
 {
   "name": "damianulan/laravel-sentinel",
   "type": "library",
-  "description": "Laravel 12 context-based roles and permissions",
+  "description": "Laravel context-based roles and permissions. Enables assigning roles and permissions in a certain context for ex. a model instance.",
   "keywords": [
     "laravel",
     "sentinel",

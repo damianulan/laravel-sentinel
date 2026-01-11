@@ -2,7 +2,9 @@
 
 namespace Sentinel\Exceptions;
 
-class PermissionWardenException extends \Exception
+use Exception;
+
+class PermissionWardenException extends Exception
 {
     public function __construct()
     {

@@ -24,12 +24,10 @@ class SentinelManager
             $parentClass = RoleWarden::class;
             // Get all declared classes from Composer's autoloader
             $classMap = require base_path('vendor/composer/autoload_classmap.php');
-            $classMap = array_filter($classMap, function ($key) {
-                return strpos($key, 'App\\Warden') !== false;
-            }, ARRAY_FILTER_USE_KEY);
+            $classMap = array_filter($classMap, fn ($key) => str_contains($key, 'App\\Warden'), ARRAY_FILTER_USE_KEY);
 
             foreach (array_keys($classMap) as $class) {
-                if (! class_exists($class)) {
+                if ( ! class_exists($class)) {
                     continue;
                 }
 
@@ -60,12 +58,10 @@ class SentinelManager
             $parentClass = PermissionWarden::class;
             // Get all declared classes from Composer's autoloader
             $classMap = require base_path('vendor/composer/autoload_classmap.php');
-            $classMap = array_filter($classMap, function ($key) {
-                return strpos($key, 'App\\Warden') !== false;
-            }, ARRAY_FILTER_USE_KEY);
+            $classMap = array_filter($classMap, fn ($key) => str_contains($key, 'App\\Warden'), ARRAY_FILTER_USE_KEY);
 
             foreach (array_keys($classMap) as $class) {
-                if (! class_exists($class)) {
+                if ( ! class_exists($class)) {
                     continue;
                 }
 
@@ -92,43 +88,33 @@ class SentinelManager
     {
         $value = self::getRolesLibNamespace();
         if (empty($value)) {
-            throw new RoleWardenException;
+            throw new RoleWardenException();
         }
 
-        return new $value;
+        return new $value();
     }
 
     public static function getPermissionsLib(): PermissionWarden
     {
         $value = self::getPermissionsLibNamespace();
         if (empty($value)) {
-            throw new PermissionWardenException;
+            throw new PermissionWardenException();
         }
 
-        return new $value;
-    }
-
-    private static function getCacheDriver()
-    {
-        $driver = config('sentinel.cache.driver');
-        if ($driver === 'default') {
-            $driver = config('cache.default');
-        }
-
-        return Cache::driver($driver);
+        return new $value();
     }
 
     public static function putCache(string $key, $value): void
     {
         if (in_array($key, self::CACHES)) {
-            self::getCacheDriver()->put(config('sentinel.cache.prefix').'.'.$key, $value, config('sentinel.cache.expire_after'));
+            self::getCacheDriver()->put(config('sentinel.cache.prefix') . '.' . $key, $value, config('sentinel.cache.expire_after'));
         }
     }
 
     public static function getCache(string $key): mixed
     {
         if (in_array($key, self::CACHES)) {
-            return self::getCacheDriver()->get(config('sentinel.cache.prefix').'.'.$key);
+            return self::getCacheDriver()->get(config('sentinel.cache.prefix') . '.' . $key);
         }
 
         return null;
@@ -137,7 +123,17 @@ class SentinelManager
     public static function flushCache(): void
     {
         foreach (self::CACHES as $key) {
-            self::getCacheDriver()->forget(config('sentinel.cache.prefix').'.'.$key);
+            self::getCacheDriver()->forget(config('sentinel.cache.prefix') . '.' . $key);
         }
+    }
+
+    private static function getCacheDriver()
+    {
+        $driver = config('sentinel.cache.driver');
+        if ('default' === $driver) {
+            $driver = config('cache.default');
+        }
+
+        return Cache::driver($driver);
     }
 }
