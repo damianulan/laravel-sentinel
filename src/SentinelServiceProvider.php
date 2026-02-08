@@ -37,11 +37,7 @@ class SentinelServiceProvider extends ServiceProvider
 
         $this->loadTranslationsFrom(__DIR__ . '/../lang', 'sentinel');
 
-        $this->loadMigrationsFrom(__DIR__ . '/../database/migrations');
-
-        $this->publishesMigrations([
-            __DIR__ . '/../database/migrations' => database_path('migrations'),
-        ]);
+        $this->publishes($this->migrationPublishers(), 'sentinel-migrations');
 
         $this->publishes([
             __DIR__ . '/../lang' => $this->app->langPath('vendor/sentinel'),
@@ -51,10 +47,10 @@ class SentinelServiceProvider extends ServiceProvider
             __DIR__ . '/../config/sentinel.php' => config_path('sentinel.php'),
         ], 'sentinel-config');
 
-        $this->publishes([
+        $this->publishes(array_merge([
             __DIR__ . '/../stubs' => base_path('stubs'),
             __DIR__ . '/../config/sentinel.php' => config_path('sentinel.php'),
-        ], 'sentinel');
+        ], $this->migrationPublishers()), 'sentinel');
 
         $this->registerCommands();
         $this->bootRolesAndPermissions();
@@ -62,13 +58,24 @@ class SentinelServiceProvider extends ServiceProvider
 
     public function registerCommands(): void
     {
-        if ($this->app->runningInConsole()) {
-            $this->commands([
-                AssignRca::class,
-                MakePermissionsLibCommand::class,
-                MakeRolesLibCommand::class,
-            ]);
-        }
+        $this->commands([
+            AssignRca::class,
+            MakePermissionsLibCommand::class,
+            MakeRolesLibCommand::class,
+        ]);
+    }
+
+    private function migrationPublishers(): array
+    {
+        $date = date('Y_m_d', time());
+        $time = (int) date('His', time());
+        return [
+            __DIR__ . '/../database/migrations/create_roles_table.php.stub' => database_path('migrations/' . $date . '_' . $time . '_create_roles_table.php'),
+            __DIR__ . '/../database/migrations/create_permissions_table.php.stub' => database_path('migrations/' . $date . '_' . $time + 1 . '_create_permissions_table.php'),
+            __DIR__ . '/../database/migrations/create_has_permissions_table.php.stub' => database_path('migrations/' . $date . '_' . $time + 2 . '_create_has_permissions_table.php'),
+            __DIR__ . '/../database/migrations/create_roles_permissions_table.php.stub' => database_path('migrations/' . $date . '_' . $time + 3 . '_create_roles_permissions_table.php'),
+            __DIR__ . '/../database/migrations/create_has_roles_table.php.stub' => database_path('migrations/' . $date . '_' . $time + 4 . '_create_has_roles_table.php'),
+        ];
     }
 
     private function bootRolesAndPermissions(): void

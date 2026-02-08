@@ -12,18 +12,10 @@ return new class() extends Migration
     public function up(): void
     {
         Schema::create('has_roles', function (Blueprint $table): void {
-            if (config('sentinel.uuids')) {
-                $table->uuidMorphs('model', 'model');
-            } else {
-                $table->morphs('model', 'model');
-            }
+            $table->morphs('model', 'model_morph');
             $table->foreignId('role_id');
             $table->foreign('role_id')->references('id')->on('roles')->onDelete('cascade');
-            if (config('sentinel.uuids')) {
-                $table->uuidMorphs('context', 'context');
-            } else {
-                $table->morphs('context', 'context');
-            }
+            $table->morphs('context', 'context_morph');
 
             $table->primary(['model_type', 'model_id', 'role_id', 'context_type', 'context_id']);
         });

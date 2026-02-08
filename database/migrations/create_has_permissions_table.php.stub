@@ -12,11 +12,7 @@ return new class() extends Migration
     public function up(): void
     {
         Schema::create('has_permissions', function (Blueprint $table): void {
-            if (config('sentinel.uuids')) {
-                $table->uuidMorphs('model', 'model');
-            } else {
-                $table->morphs('model', 'model');
-            }
+            $table->morphs('model', 'model_morph');
             $table->foreignId('permission_id');
             $table->foreign('permission_id')->references('id')->on('permissions')->onDelete('cascade');
 

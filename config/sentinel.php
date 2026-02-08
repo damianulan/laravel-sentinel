@@ -16,12 +16,6 @@ return [
     */
 
     /**
-     * choose whether role assigned models use uuids or not.
-     * YOU SHOULD DECIDE ON THIS BEFORE MIGRATION
-     */
-    'uuids' => false,
-
-    /**
      * Choose default context for Sentinel. This context will be used when
      * creating new roles and permissions that don't have context specified.
      */
