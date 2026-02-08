@@ -13,7 +13,7 @@ You can install the package via composer in your laravel project:
 ```
 composer require damianulan/laravel-sentinel
 ```
-and publish vendor assets:
+and publish vendor assets and migrations:
 ```
 php artisan vendor:publish --tag=sentinel
 ```
@@ -37,7 +37,7 @@ class User extends Authenticatable
 
 ### Configuration
 
-In `config/sentinel.php` you can configure package settings. It is important to set `uuids` option to true, if your models use UUIDs as primary keys.
+In `config/sentinel.php` you can configure package settings.
 
 Now migration can be run.
 ```
