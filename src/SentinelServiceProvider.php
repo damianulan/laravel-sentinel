@@ -69,6 +69,7 @@ class SentinelServiceProvider extends ServiceProvider
     {
         $date = date('Y_m_d', time());
         $time = (int) date('His', time());
+
         return [
             __DIR__ . '/../database/migrations/create_roles_table.php.stub' => database_path('migrations/' . $date . '_' . $time . '_create_roles_table.php'),
             __DIR__ . '/../database/migrations/create_permissions_table.php.stub' => database_path('migrations/' . $date . '_' . $time + 1 . '_create_permissions_table.php'),
