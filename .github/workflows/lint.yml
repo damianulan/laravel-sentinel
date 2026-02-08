@@ -1,7 +1,9 @@
 name: Code Style Fixer
 
-on: [push]
-
+on:
+  push:
+    branches:
+      - v1
 jobs:
   lint:
     runs-on: ubuntu-latest
