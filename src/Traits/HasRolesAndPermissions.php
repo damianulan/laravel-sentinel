@@ -371,12 +371,12 @@ trait HasRolesAndPermissions
         $query->where(function (Builder $q) use ($slugs): void {
             $q->where(function (Builder $q) use ($slugs): void {
                 $q->whereHas('permissions', function (Builder $q) use ($slugs): void {
-                    $q->where('slug', $slugs);
+                    $q->whereIn('slug', $slugs);
                 });
             })->orWhere(function (Builder $q) use ($slugs): void {
                 $q->whereHas('roles', function (Builder $q) use ($slugs): void {
                     $q->whereHas('permissions', function (Builder $q) use ($slugs): void {
-                        $q->where('slug', $slugs);
+                        $q->whereIn('slug', $slugs);
                     });
                 });
             });
