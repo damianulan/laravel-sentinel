@@ -348,7 +348,7 @@ trait HasRolesAndPermissions
      */
     public function isAdmin(): bool
     {
-        return $this->hasAnyRoles(Role::getRolesLib()::admins());
+        return $this->hasAnyRoles(Role::getRolesLib()::admins()) || $this->isRoot();
     }
 
     /**
