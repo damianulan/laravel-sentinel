@@ -2,22 +2,17 @@
 
 namespace Sentinel;
 
-use Exception;
 use Illuminate\Contracts\Auth\Access\Authorizable;
+use Illuminate\Contracts\Auth\Access\Gate;
+use Illuminate\Contracts\Foundation\Application;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\Blade;
-use Illuminate\Contracts\Auth\Access\Gate;
-use Illuminate\Support\Facades\Gate as GateFacade;
-use Illuminate\Support\Facades\Log;
-use Illuminate\Support\Facades\Schema;
 use Illuminate\Support\ServiceProvider;
 use Sentinel\Console\Commands\AssignRca;
 use Sentinel\Console\Commands\Generators\MakePermissionsLibCommand;
 use Sentinel\Console\Commands\Generators\MakeRolesLibCommand;
-use Sentinel\Models\Permission;
 use Sentinel\Traits\HasRolesAndPermissions;
-use Illuminate\Contracts\Foundation\Application;
 
 /**
  * @author Damian Ułan <damian.ulan@protonmail.com>
@@ -106,7 +101,7 @@ class SentinelServiceProvider extends ServiceProvider
 
         Blade::if('root', fn () => Auth::user()->hasRole(config('sentinel.root')));
 
-        $this->callAfterResolving(Gate::class, function (Gate $gate, Application $app) {
+        $this->callAfterResolving(Gate::class, function (Gate $gate, Application $app): void {
             $this->registerPermission($gate);
         });
     }
@@ -115,8 +110,8 @@ class SentinelServiceProvider extends ServiceProvider
     {
         $gate->before(function (Authorizable $user, string $ability, array &$args = []) {
             $context = null;
-            foreach($args as $arg){
-                if(!$context && $arg instanceof Model){
+            foreach ($args as $arg) {
+                if ( ! $context && $arg instanceof Model) {
                     $context = $arg;
                 }
             }
