@@ -105,6 +105,4 @@ class SentinelManager
 
         return new $value();
     }
-
-
 }
