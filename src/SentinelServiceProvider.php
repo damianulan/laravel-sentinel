@@ -3,16 +3,21 @@
 namespace Sentinel;
 
 use Exception;
+use Illuminate\Contracts\Auth\Access\Authorizable;
+use Illuminate\Database\Eloquent\Model;
 use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\Blade;
-use Illuminate\Support\Facades\Gate;
+use Illuminate\Contracts\Auth\Access\Gate;
+use Illuminate\Support\Facades\Gate as GateFacade;
 use Illuminate\Support\Facades\Log;
+use Illuminate\Support\Facades\Schema;
 use Illuminate\Support\ServiceProvider;
 use Sentinel\Console\Commands\AssignRca;
 use Sentinel\Console\Commands\Generators\MakePermissionsLibCommand;
 use Sentinel\Console\Commands\Generators\MakeRolesLibCommand;
 use Sentinel\Models\Permission;
 use Sentinel\Traits\HasRolesAndPermissions;
+use Illuminate\Contracts\Foundation\Application;
 
 /**
  * @author Damian Ułan <damian.ulan@protonmail.com>
@@ -101,32 +106,30 @@ class SentinelServiceProvider extends ServiceProvider
 
         Blade::if('root', fn () => Auth::user()->hasRole(config('sentinel.root')));
 
-        try {
-            Permission::get()->map(function ($permission): void {
-                Gate::define($permission->slug, function ($user, $context = null) use ($permission) {
-                    if ($user && class_uses_trait(HasRolesAndPermissions::class, $user::class)) {
-                        if ($user->hasRole(config('sentinel.root'))) {
-                            return true;
-                        }
+        $this->callAfterResolving(Gate::class, function (Gate $gate, Application $app) {
+            $this->registerPermission($gate);
+        });
+    }
 
-                        return $user->hasPermissionTo($permission, $context);
-                    }
+    private function registerPermission(Gate $gate): void
+    {
+        $gate->before(function (Authorizable $user, string $ability, array &$args = []) {
+            $context = null;
+            foreach($args as $arg){
+                if(!$context && $arg instanceof Model){
+                    $context = $arg;
+                }
+            }
 
-                    return false;
-                });
-            });
-        } catch (Exception $e) {
-            Log::error(static::class . ' failed fetching permission: ' . $e->getMessage(), [
-                'exception' => $e,
-            ]);
-        }
-
-        Gate::before(function ($user, string $ability) {
-            if ($user && class_uses_trait(HasRolesAndPermissions::class, $user::class)) {
+            if (method_exists($user, 'isRoot')) {
                 if ($user->isRoot()) {
                     return true;
                 }
             }
+            if (method_exists($user, 'hasPermissionTo')) {
+                return $user->hasPermissionTo($ability, $context) ?: null;
+            }
         });
+
     }
 }

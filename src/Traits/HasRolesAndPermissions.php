@@ -239,7 +239,7 @@ trait HasRolesAndPermissions
      *
      * @param  mixed  $context
      */
-    public function assignRoleSlug(RoleContract|string $slug, $context = null): void
+    public function assignRoleSlug(RoleContract|string $slug, $context = null): static
     {
         $role_class = config('sentinel.models.role');
         if ( ! $slug instanceof RoleContract) {
@@ -248,6 +248,8 @@ trait HasRolesAndPermissions
         if ($role) {
             $this->assignRoleType($role, $context);
         }
+
+        return $this;
     }
 
     /**
@@ -256,7 +258,7 @@ trait HasRolesAndPermissions
      * @param  mixed  $role_id
      * @param  mixed  $context
      */
-    public function assignRole($role_id, $context = null): void
+    public function assignRole($role_id, $context = null): static
     {
         $role_class = config('sentinel.models.role');
         if ( ! $role_id instanceof RoleContract) {
@@ -268,6 +270,8 @@ trait HasRolesAndPermissions
         if ($role) {
             $this->assignRoleType($role, $context);
         }
+
+        return $this;
     }
 
     /**
@@ -275,7 +279,7 @@ trait HasRolesAndPermissions
      *
      * @param  mixed  $context
      */
-    public function revokeRoleSlug(RoleContract|string $slug, $context = null): void
+    public function revokeRoleSlug(RoleContract|string $slug, $context = null): static
     {
         $role_class = config('sentinel.models.role');
         if ( ! $slug instanceof RoleContract) {
@@ -287,6 +291,8 @@ trait HasRolesAndPermissions
         if ($role) {
             $this->revokeRoleType($role, $context);
         }
+
+        return $this;
     }
 
     /**
@@ -295,7 +301,7 @@ trait HasRolesAndPermissions
      * @param  mixed  $role_id
      * @param  mixed  $context
      */
-    public function revokeRole($role_id, $context = null): void
+    public function revokeRole($role_id, $context = null): static
     {
         $role_class = config('sentinel.models.role');
         if ( ! $role_id instanceof RoleContract) {
@@ -307,6 +313,8 @@ trait HasRolesAndPermissions
         if ($role) {
             $this->revokeRoleType($role, $context);
         }
+
+        return $this;
     }
 
     /**
@@ -314,7 +322,7 @@ trait HasRolesAndPermissions
      *
      * @param  mixed  $roles_ids
      */
-    public function refreshRole($roles_ids = null): void
+    public function refreshRole($roles_ids = null): static
     {
         if ( ! $roles_ids) {
             $roles_ids = [];
@@ -331,6 +339,8 @@ trait HasRolesAndPermissions
         foreach ($toAdd as $role_id) {
             $this->assignRole($role_id);
         }
+
+        return $this;
     }
 
     /**
