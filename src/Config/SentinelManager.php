@@ -2,8 +2,8 @@
 
 namespace Sentinel\Config;
 
-use Illuminate\Support\Facades\Cache;
 use ReflectionClass;
+use Sentinel\Concerns\HasSentinelCache;
 use Sentinel\Config\Warden\PermissionWarden;
 use Sentinel\Config\Warden\RoleWarden;
 use Sentinel\Exceptions\PermissionWardenException;
@@ -11,6 +11,8 @@ use Sentinel\Exceptions\RoleWardenException;
 
 class SentinelManager
 {
+    use HasSentinelCache;
+
     const CACHES = [
         'rolesLib',
         'permissionsLib',
@@ -102,38 +104,5 @@ class SentinelManager
         }
 
         return new $value();
-    }
-
-    public static function putCache(string $key, $value): void
-    {
-        if (in_array($key, self::CACHES)) {
-            self::getCacheDriver()->put(config('sentinel.cache.prefix') . '.' . $key, $value, config('sentinel.cache.expire_after'));
-        }
-    }
-
-    public static function getCache(string $key): mixed
-    {
-        if (in_array($key, self::CACHES)) {
-            return self::getCacheDriver()->get(config('sentinel.cache.prefix') . '.' . $key);
-        }
-
-        return null;
-    }
-
-    public static function flushCache(): void
-    {
-        foreach (self::CACHES as $key) {
-            self::getCacheDriver()->forget(config('sentinel.cache.prefix') . '.' . $key);
-        }
-    }
-
-    private static function getCacheDriver()
-    {
-        $driver = config('sentinel.cache.driver');
-        if ('default' === $driver) {
-            $driver = config('cache.default');
-        }
-
-        return Cache::driver($driver);
     }
 }
