@@ -148,7 +148,7 @@ trait HasRolesAndPermissions
      */
     public function hasPermissionTo(PermissionContract|string $permission, $context = null)
     {
-        if($this->isRoot()){
+        if ($this->isRoot()) {
             return true;
         }
         $perm = $permission;
