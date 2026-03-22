@@ -90,6 +90,7 @@ class AssignRca extends Command
             DB::commit();
 
             SentinelManager::flushCache();
+            SentinelManager::flushPermissionCheckCache();
         } catch (Exception $e) {
             DB::rollBack();
             $this->error($e->getMessage());

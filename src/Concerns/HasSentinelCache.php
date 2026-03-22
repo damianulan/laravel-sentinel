@@ -6,6 +6,14 @@ use Illuminate\Support\Facades\Cache;
 
 trait HasSentinelCache
 {
+    public static function flushPermissionCheckCache(): void
+    {
+        static::getCacheDriver()->forever(
+            config('sentinel.cache.key') . '.permission-checks.version',
+            \Illuminate\Support\Str::uuid()->toString()
+        );
+    }
+
     public static function putCache(string $key, $value): void
     {
         if (in_array($key, static::CACHES)) {

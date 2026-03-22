@@ -9,6 +9,7 @@ use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\MorphToMany;
 use Illuminate\Database\Query\Builder as DBBuilder;
 use Illuminate\Support\Collection;
+use Illuminate\Support\Facades\Cache;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Str;
 use Sentinel\Contracts\DefaultContext;
@@ -151,22 +152,30 @@ trait HasRolesAndPermissions
         if ($this->isRoot()) {
             return true;
         }
-        $perm = $permission;
-        if ($permission instanceof PermissionContract) {
-            $perm = $permission->slug;
-        }
 
-        $permissions = $this->getMultiplePermissions($perm);
-        $result = false;
+        $permissionSlug = $permission instanceof PermissionContract
+            ? $permission->slug
+            : $permission;
 
-        foreach ($permissions as $p) {
-            $result = $context ? $this->hasPermissionThroughRole($p, $context) : $this->hasPermissionThroughRole($p) || $this->hasPermission($p);
-            if ($result) {
-                break;
+        return Cache::store($this->getSentinelCacheStore())->remember(
+            $this->getPermissionCheckCacheKey($permissionSlug, $context),
+            now()->addSeconds($this->getSentinelCacheTtl()),
+            function () use ($permissionSlug, $context): bool {
+                $permissions = $this->getMultiplePermissions($permissionSlug);
+
+                foreach ($permissions as $resolvedPermission) {
+                    $result = $context
+                        ? $this->hasPermissionThroughRole($resolvedPermission, $context)
+                        : ($this->hasPermissionThroughRole($resolvedPermission) || $this->hasPermission($resolvedPermission));
+
+                    if ($result) {
+                        return true;
+                    }
+                }
+
+                return false;
             }
-        }
-
-        return $result;
+        );
     }
 
     /**
@@ -208,6 +217,7 @@ trait HasRolesAndPermissions
             return $this;
         }
         $this->permissions()->saveMany($permissions);
+        $this->flushSentinelPermissionCache();
 
         return $this;
     }
@@ -221,6 +231,7 @@ trait HasRolesAndPermissions
     {
         $permissions = $this->getAllPermissions($permissions);
         $this->permissions()->detach($permissions);
+        $this->flushSentinelPermissionCache();
 
         return $this;
     }
@@ -233,6 +244,8 @@ trait HasRolesAndPermissions
     public function refreshPermissions(...$permissions): static
     {
         $this->permissions()->detach();
+
+        $this->flushSentinelPermissionCache();
 
         return $this->givePermissionsTo($permissions);
     }
@@ -343,6 +356,8 @@ trait HasRolesAndPermissions
             $this->assignRole($role_id);
         }
 
+        $this->flushSentinelPermissionCache();
+
         return $this;
     }
 
@@ -424,6 +439,7 @@ trait HasRolesAndPermissions
 
         if ( ! $this->roles()->where('context_type', $additional['context_type'])->where('context_id', $additional['context_id'])->where('role_id', $role->id)->exists()) {
             $this->roles()->attach($role, $additional);
+            $this->flushSentinelPermissionCache();
         }
     }
 
@@ -443,6 +459,7 @@ trait HasRolesAndPermissions
         $additional['context_id'] = $context->getKey();
 
         $this->roles()->detach($role, $additional);
+        $this->flushSentinelPermissionCache();
     }
 
     private function getMultiplePermissions(string $permission): array
@@ -467,5 +484,79 @@ trait HasRolesAndPermissions
         }
 
         return $permissions;
+    }
+
+    private function flushSentinelPermissionCache(): void
+    {
+        Cache::store($this->getSentinelCacheStore())->forever(
+            $this->getPermissionCacheVersionKey(),
+            Str::uuid()->toString()
+        );
+    }
+
+    private function getPermissionCheckCacheKey(string $permission, $context = null): string
+    {
+        $parts = [
+            config('sentinel.cache.key', 'sentinel.cache'),
+            'permission-check',
+            $this->getMorphClass(),
+            $this->getKey(),
+            $this->getPermissionCacheVersion(),
+            $this->getGlobalPermissionCacheVersion(),
+            $permission,
+        ];
+
+        if ($context instanceof Model) {
+            $parts[] = $context::class;
+            $parts[] = (string) $context->getKey();
+        } else {
+            $parts[] = 'global';
+        }
+
+        return implode('.', array_map(
+            static fn (string|int $part): string => Str::slug((string) $part, '_'),
+            $parts
+        ));
+    }
+
+    private function getPermissionCacheVersion(): string
+    {
+        $store = Cache::store($this->getSentinelCacheStore());
+        $key = $this->getPermissionCacheVersionKey();
+
+        return (string) $store->rememberForever($key, static fn (): string => Str::uuid()->toString());
+    }
+
+    private function getGlobalPermissionCacheVersion(): string
+    {
+        $store = Cache::store($this->getSentinelCacheStore());
+        $key = config('sentinel.cache.key', 'sentinel.cache') . '.permission-checks.version';
+
+        return (string) $store->rememberForever($key, static fn (): string => Str::uuid()->toString());
+    }
+
+    private function getPermissionCacheVersionKey(): string
+    {
+        return implode('.', [
+            config('sentinel.cache.key', 'sentinel.cache'),
+            'permission-checks',
+            Str::slug($this->getMorphClass(), '_'),
+            $this->getKey(),
+            'version',
+        ]);
+    }
+
+    private function getSentinelCacheStore(): string
+    {
+        $driver = config('sentinel.cache.driver', 'default');
+
+        return 'default' === $driver
+            ? (string) config('cache.default')
+            : $driver;
+    }
+
+    private function getSentinelCacheTtl(): int
+    {
+        return (int) config('sentinel.cache.expire_after', 86400);
     }
 }
