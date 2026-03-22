@@ -116,11 +116,6 @@ class SentinelServiceProvider extends ServiceProvider
                 }
             }
 
-            if (method_exists($user, 'isRoot')) {
-                if ($user->isRoot()) {
-                    return true;
-                }
-            }
             if (method_exists($user, 'hasPermissionTo')) {
                 return $user->hasPermissionTo($ability, $context) ?: null;
             }

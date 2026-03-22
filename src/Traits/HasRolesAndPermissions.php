@@ -148,6 +148,9 @@ trait HasRolesAndPermissions
      */
     public function hasPermissionTo(PermissionContract|string $permission, $context = null)
     {
+        if($this->isRoot()){
+            return true;
+        }
         $perm = $permission;
         if ($permission instanceof PermissionContract) {
             $perm = $permission->slug;
@@ -348,7 +351,7 @@ trait HasRolesAndPermissions
      */
     public function isAdmin(): bool
     {
-        return $this->hasAnyRoles(Role::getRolesLib()::admins());
+        return $this->hasAnyRoles(Role::getRolesLib()::admins()) || $this->isRoot();
     }
 
     /**
