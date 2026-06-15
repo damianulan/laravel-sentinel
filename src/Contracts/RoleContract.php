@@ -4,7 +4,9 @@ namespace Sentinel\Contracts;
 
 use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Database\Eloquent\Relations\BelongsToMany;
+use Illuminate\Database\Eloquent\Model;
 
+/** @mixin Model */
 interface RoleContract
 {
     /**

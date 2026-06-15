@@ -17,6 +17,7 @@ use Sentinel\Contracts\PermissionContract;
 use Sentinel\Contracts\RoleContract;
 use Sentinel\Models\Permission;
 use Sentinel\Models\Role;
+use Sentinel\Helpers\RoleHelper;
 
 /**
  * @author Damian Ułan <damian.ulan@protonmail.com>
@@ -28,10 +29,10 @@ trait HasRolesAndPermissions
      * Context is not required, if not provided, checks for all contexts. System context is superior - if context is provided,
      * but assigned to System context, then it will return true.
      *
-     * @param  mixed  $context  - \Illuminate\Database\Eloquent\Model instance
-     * @return Illuminate\Database\Eloquent\Relations\MorphToMany
+     * @param  Model|null  $context
+     * @return MorphToMany
      */
-    public function roles($context = null): MorphToMany
+    public function roles(?Model $context = null): MorphToMany
     {
         $role_class = config('sentinel.models.role');
         $relation = $this->morphToMany($role_class, 'model', 'has_roles');
@@ -99,7 +100,17 @@ trait HasRolesAndPermissions
     /**
      * Check if has all of given roles.
      *
-     * @param  array  $roles  - role slugs
+     * @param  array<mixed, RoleContract|string>  $roles  - role slugs
+     */
+    public function hasAllRoles(array $roles): bool
+    {
+        return $this->hasRoles($roles);
+    }
+
+    /**
+     * Check if has all of given roles.
+     *
+     * @param  array<mixed, RoleContract|string>  $roles  - role slugs
      */
     public function hasRoles(array $roles): bool
     {
@@ -116,7 +127,7 @@ trait HasRolesAndPermissions
     /**
      * Check if has any of given roles.
      *
-     * @param  array  $roles  - role slugs
+     * @param  array<mixed, RoleContract|string>  $roles  - role slugs
      */
     public function hasAnyRoles(array $roles): bool
     {
@@ -135,7 +146,7 @@ trait HasRolesAndPermissions
      *
      * @return bool
      */
-    public function hasPermission(PermissionContract $permission)
+    public function hasPermission(PermissionContract|string $permission)
     {
         return (bool) $this->permissions->where('slug', $permission->slug)->count();
     }
@@ -253,9 +264,22 @@ trait HasRolesAndPermissions
     /**
      * Assign role by its slug.
      *
-     * @param  mixed  $context
+     * @param  RoleContract|string   $slug
+     * @param  mixed                 $context
+     * @deprecated 1.0.7
      */
     public function assignRoleSlug(RoleContract|string $slug, $context = null): static
+    {
+        return $this->assignRole($slug, $context);
+    }
+
+    /**
+     * Assign role by its slug.
+     *
+     * @param  RoleContract|string   $slug
+     * @param  Model|null            $context
+     */
+    public function assignRole(RoleContract|string $slug, ?Model $context = null): static
     {
         $role_class = config('sentinel.models.role');
         if ( ! $slug instanceof RoleContract) {
@@ -271,10 +295,10 @@ trait HasRolesAndPermissions
     /**
      * Assign role by its id.
      *
-     * @param  mixed  $role_id
-     * @param  mixed  $context
+     * @param  RoleContract|int  $role_id
+     * @param  Model|null        $context
      */
-    public function assignRole($role_id, $context = null): static
+    public function assignRoleId(RoleContract|int $role_id, ?Model $context = null): static
     {
         $role_class = config('sentinel.models.role');
         if ( ! $role_id instanceof RoleContract) {
@@ -293,9 +317,11 @@ trait HasRolesAndPermissions
     /**
      * Revoke role by its slug.
      *
-     * @param  mixed  $context
+     * @param  RoleContract|string   $slug
+     * @param  Model|null            $context
+     * @deprecated 1.0.7
      */
-    public function revokeRoleSlug(RoleContract|string $slug, $context = null): static
+    public function revokeRoleSlug(RoleContract|string $slug, ?Model $context = null): static
     {
         $role_class = config('sentinel.models.role');
         if ( ! $slug instanceof RoleContract) {
@@ -312,12 +338,26 @@ trait HasRolesAndPermissions
     }
 
     /**
+     * Revoke role by its slug.
+     *
+     * @param  RoleContract|string   $slug
+     * @param  Model|null            $context
+     */
+    public function revokeRole(RoleContract|string $slug, ?Model $context = null): static
+    {
+        $this->revokeRoleType(RoleHelper::findOrFail($slug), $context);
+
+        return $this;
+    }
+
+
+    /**
      * Revoke role by its id.
      *
-     * @param  mixed  $role_id
-     * @param  mixed  $context
+     * @param  RoleContract|int  $role_id
+     * @param  Model|null        $context
      */
-    public function revokeRole($role_id, $context = null): static
+    public function revokeRoleId($role_id, $context = null): static
     {
         $role_class = config('sentinel.models.role');
         if ( ! $role_id instanceof RoleContract) {
@@ -350,10 +390,10 @@ trait HasRolesAndPermissions
         $toAdd = array_filter($roles_ids, fn ($value) => ! in_array($value, $current));
 
         foreach ($toDelete as $role_id) {
-            $this->revokeRole($role_id);
+            $this->revokeRoleId($role_id);
         }
         foreach ($toAdd as $role_id) {
-            $this->assignRole($role_id);
+            $this->assignRoleId($role_id);
         }
 
         $this->flushSentinelPermissionCache();
@@ -448,7 +488,7 @@ trait HasRolesAndPermissions
      *
      * @param  mixed  $context
      */
-    private function revokeRoleType(RoleContract $role, $context = null): void
+    private function revokeRoleType(RoleContract $role, ?Model $context = null): void
     {
         $additional = [];
 
