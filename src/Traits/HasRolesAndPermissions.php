@@ -121,7 +121,7 @@ trait HasRolesAndPermissions
     {
         foreach ($roles as $role) {
             if ( ! $this->hasRole($role)) {
-                return false
+                return false;
             }
         }
 
