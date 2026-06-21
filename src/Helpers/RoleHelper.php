@@ -19,7 +19,11 @@ class RoleHelper
 
         $role_class = SentinelHelper::getRoleClass();
         if ( ! $role_id instanceof RoleContract) {
-            $role_id = $role_class::findBySlug($role_id) ?? $role_class::find($role_id);
+            if(is_int($role_id)){
+                $role_id = $role_class::find($role_id);
+            } else {
+                $role_id = $role_class::findBySlug($role_id) ?? $role_class::find($role_id);
+            }
         }
 
         if(empty($role_id)){

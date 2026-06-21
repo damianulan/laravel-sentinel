@@ -19,7 +19,11 @@ class PermissionHelper
 
         $perm_class = SentinelHelper::getPermissionClass();
         if ( ! $permission_id instanceof PermissionContract) {
-            $permission_id = $perm_class::findBySlug($permission_id) ?? $perm_class::find($permission_id);
+            if(is_int($permission_id)){
+                $permission_id = $perm_class::find($permission_id);
+            } else {
+                $permission_id = $perm_class::findBySlug($permission_id) ?? $perm_class::find($permission_id);
+            }
         }
 
         if(empty($permission_id)){

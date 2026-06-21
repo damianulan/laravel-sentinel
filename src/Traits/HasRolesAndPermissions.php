@@ -12,12 +12,15 @@ use Illuminate\Support\Collection;
 use Illuminate\Support\Facades\Cache;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Str;
+use Laravel\Sentinel\Sentinel;
 use Sentinel\Contracts\DefaultContext;
 use Sentinel\Contracts\PermissionContract;
 use Sentinel\Contracts\RoleContract;
+use Sentinel\Helpers\PermissionHelper;
 use Sentinel\Models\Permission;
 use Sentinel\Models\Role;
 use Sentinel\Helpers\RoleHelper;
+use Sentinel\Helpers\SentinelHelper;
 
 /**
  * @author Damian Ułan <damian.ulan@protonmail.com>
@@ -78,7 +81,8 @@ trait HasRolesAndPermissions
     {
         $slugs = $this->roles->pluck('slug')->unique();
         $roles = new Collection();
-        $langs = Role::getRolesLib()::labels();
+        $role_class = SentinelHelper::getRoleClass();
+        $langs = $role_class::getRolesLib()::labels();
         foreach ($slugs as $slug) {
             $lang = $langs[$slug] ?? $slug;
             $roles->push($lang);
@@ -90,11 +94,12 @@ trait HasRolesAndPermissions
     /**
      * Check if has given role.
      *
-     * @param  string  $slug  - role slug
+     * @param  RoleContract|string  $slug  - role slug
      */
-    public function hasRole(string $slug): bool
+    public function hasRole(RoleContract|string $slug): bool
     {
-        return (bool) ($this->roles->contains('slug', $slug));
+        $role = RoleHelper::findOrFail($slug);
+        return (bool) ($this->roles->contains('slug', $role->slug));
     }
 
     /**
@@ -114,14 +119,13 @@ trait HasRolesAndPermissions
      */
     public function hasRoles(array $roles): bool
     {
-        $result = true;
         foreach ($roles as $role) {
             if ( ! $this->hasRole($role)) {
-                $result = false;
+                return false
             }
         }
 
-        return $result;
+        return true;
     }
 
     /**
@@ -144,10 +148,12 @@ trait HasRolesAndPermissions
      * Checks if has given permission.
      * Please note, it does not verify the context - to check the context and verify with role, use hasPermissionTo instead.
      *
+     * @param  PermissionContract|string  $permission
      * @return bool
      */
     public function hasPermission(PermissionContract|string $permission)
     {
+        $permission = PermissionHelper::findOrFail($permission);
         return (bool) $this->permissions->where('slug', $permission->slug)->count();
     }
 
@@ -155,22 +161,21 @@ trait HasRolesAndPermissions
      * Check if user has a certain permission (direct or through role). Give model context if needed.
      * Use "permission-*" syntax to check for multiple permissions of given category.
      *
-     * @param  mixed  $context
+     * @param  PermissionContract|string  $permission
+     * @param  Model|null  $context
      * @return bool
      */
-    public function hasPermissionTo(PermissionContract|string $permission, $context = null)
+    public function hasPermissionTo(PermissionContract|string $permission, ?Model $context = null)
     {
         if ($this->isRoot()) {
             return true;
         }
 
-        $permissionSlug = $permission instanceof PermissionContract
-            ? $permission->slug
-            : $permission;
+        $permissionSlug = PermissionHelper::findOrFail($permission)->slug;
 
-        return Cache::store($this->getSentinelCacheStore())->remember(
+        return Cache::store(SentinelHelper::getSentinelCacheStore())->remember(
             $this->getPermissionCheckCacheKey($permissionSlug, $context),
-            now()->addSeconds($this->getSentinelCacheTtl()),
+            now()->addSeconds(SentinelHelper::getSentinelCacheTtl()),
             function () use ($permissionSlug, $context): bool {
                 $permissions = $this->getMultiplePermissions($permissionSlug);
 
@@ -190,9 +195,12 @@ trait HasRolesAndPermissions
     }
 
     /**
-     * @param  mixed  $context
+     * Check if user-assigned role has a permission.
+     *
+     * @param  PermissionContract|string  $permission
+     * @param  Model|null  $context
      */
-    public function hasPermissionThroughRole(PermissionContract $permission, $context = null): bool
+    public function hasPermissionThroughRole(PermissionContract|string $permission, ?Model $context = null): bool
     {
         $roles = $this->roles($context)->get();
         foreach ($permission->roles as $role) {
@@ -281,13 +289,7 @@ trait HasRolesAndPermissions
      */
     public function assignRole(RoleContract|string $slug, ?Model $context = null): static
     {
-        $role_class = config('sentinel.models.role');
-        if ( ! $slug instanceof RoleContract) {
-            $role = $role_class::findBySlug($slug);
-        }
-        if ($role) {
-            $this->assignRoleType($role, $context);
-        }
+        $this->assignRoleType(RoleHelper::findOrFail($slug), $context);
 
         return $this;
     }
@@ -300,16 +302,7 @@ trait HasRolesAndPermissions
      */
     public function assignRoleId(RoleContract|int $role_id, ?Model $context = null): static
     {
-        $role_class = config('sentinel.models.role');
-        if ( ! $role_id instanceof RoleContract) {
-            $role = $role_class::find($role_id);
-        } else {
-            $role = $role_id;
-        }
-
-        if ($role) {
-            $this->assignRoleType($role, $context);
-        }
+        $this->assignRoleType(RoleHelper::findOrFail($role_id), $context);
 
         return $this;
     }
@@ -323,18 +316,7 @@ trait HasRolesAndPermissions
      */
     public function revokeRoleSlug(RoleContract|string $slug, ?Model $context = null): static
     {
-        $role_class = config('sentinel.models.role');
-        if ( ! $slug instanceof RoleContract) {
-            $role = $role_class::findBySlug($slug);
-        } else {
-            $role = $slug;
-        }
-
-        if ($role) {
-            $this->revokeRoleType($role, $context);
-        }
-
-        return $this;
+        return $this->revokeRole($slug, $context);
     }
 
     /**
@@ -357,18 +339,9 @@ trait HasRolesAndPermissions
      * @param  RoleContract|int  $role_id
      * @param  Model|null        $context
      */
-    public function revokeRoleId($role_id, $context = null): static
+    public function revokeRoleId($role_id, ?Model $context = null): static
     {
-        $role_class = config('sentinel.models.role');
-        if ( ! $role_id instanceof RoleContract) {
-            $role = $role_class::find($role_id);
-        } else {
-            $role = $role_id;
-        }
-
-        if ($role) {
-            $this->revokeRoleType($role, $context);
-        }
+        $this->revokeRoleType(RoleHelper::findOrFail($role_id), $context);
 
         return $this;
     }
@@ -376,14 +349,10 @@ trait HasRolesAndPermissions
     /**
      * Refresh role assignments.
      *
-     * @param  mixed  $roles_ids
+     * @param  array  $roles_ids
      */
-    public function refreshRole($roles_ids = null): static
+    public function refreshRole(array $roles_ids = []): static
     {
-        if ( ! $roles_ids) {
-            $roles_ids = [];
-        }
-
         $current = $this->roles()->where('assignable', 1)->get()->pluck('id')->toArray();
 
         $toDelete = array_filter($current, fn ($value) => ! in_array($value, $roles_ids));
@@ -528,7 +497,7 @@ trait HasRolesAndPermissions
 
     private function flushSentinelPermissionCache(): void
     {
-        Cache::store($this->getSentinelCacheStore())->forever(
+        Cache::store(SentinelHelper::getSentinelCacheStore())->forever(
             $this->getPermissionCacheVersionKey(),
             Str::uuid()->toString()
         );
@@ -561,7 +530,7 @@ trait HasRolesAndPermissions
 
     private function getPermissionCacheVersion(): string
     {
-        $store = Cache::store($this->getSentinelCacheStore());
+        $store = Cache::store(SentinelHelper::getSentinelCacheStore());
         $key = $this->getPermissionCacheVersionKey();
 
         return (string) $store->rememberForever($key, static fn (): string => Str::uuid()->toString());
@@ -569,7 +538,7 @@ trait HasRolesAndPermissions
 
     private function getGlobalPermissionCacheVersion(): string
     {
-        $store = Cache::store($this->getSentinelCacheStore());
+        $store = Cache::store(SentinelHelper::getSentinelCacheStore());
         $key = config('sentinel.cache.key', 'sentinel.cache') . '.permission-checks.version';
 
         return (string) $store->rememberForever($key, static fn (): string => Str::uuid()->toString());
@@ -584,19 +553,5 @@ trait HasRolesAndPermissions
             $this->getKey(),
             'version',
         ]);
-    }
-
-    private function getSentinelCacheStore(): string
-    {
-        $driver = config('sentinel.cache.driver', 'default');
-
-        return 'default' === $driver
-            ? (string) config('cache.default')
-            : $driver;
-    }
-
-    private function getSentinelCacheTtl(): int
-    {
-        return (int) config('sentinel.cache.expire_after', 86400);
     }
 }

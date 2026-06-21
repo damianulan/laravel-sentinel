@@ -13,4 +13,18 @@ class SentinelHelper
     {
         return config('sentinel.models.permission');
     }
+
+    public static function getSentinelCacheStore(): string
+    {
+        $driver = config('sentinel.cache.driver', 'default');
+
+        return 'default' === $driver
+            ? (string) config('cache.default')
+            : $driver;
+    }
+
+    public static function getSentinelCacheTtl(): int
+    {
+        return (int) config('sentinel.cache.expire_after', 86400);
+    }
 }
