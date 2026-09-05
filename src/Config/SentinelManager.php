@@ -3,6 +3,7 @@
 namespace Sentinel\Config;
 
 use ReflectionClass;
+use ReflectionException;
 use Sentinel\Concerns\HasSentinelCache;
 use Sentinel\Config\Warden\PermissionWarden;
 use Sentinel\Config\Warden\RoleWarden;
@@ -13,7 +14,7 @@ class SentinelManager
 {
     use HasSentinelCache;
 
-    const CACHES = [
+    public const CACHES = [
         'rolesLib',
         'permissionsLib',
     ];
@@ -24,12 +25,17 @@ class SentinelManager
 
         if (empty($value)) {
             $parentClass = RoleWarden::class;
-            // Get all declared classes from Composer's autoloader
-            $classMap = require base_path('vendor/composer/autoload_classmap.php');
-            $classMap = array_filter($classMap, fn ($key) => str_contains($key, 'App\\Warden'), ARRAY_FILTER_USE_KEY);
+            $config = config('sentinel.wardens.roles');
+
+            if (empty($config)) {
+                $classMap = require base_path('vendor/composer/autoload_classmap.php');
+                $classMap = array_filter($classMap, fn ($key) => str_contains($key, 'App\\Warden'), ARRAY_FILTER_USE_KEY);
+            } else {
+                $classMap = [$config => $config];
+            }
 
             foreach (array_keys($classMap) as $class) {
-                if ( ! class_exists($class)) {
+                if (! class_exists($class)) {
                     continue;
                 }
 
@@ -43,7 +49,7 @@ class SentinelManager
                         $value = $class;
                     }
                 } catch (ReflectionException $e) {
-                    // Skip problematic classes
+                    //
                 }
             }
             self::putCache('rolesLib', $value);
@@ -58,12 +64,17 @@ class SentinelManager
 
         if (empty($value)) {
             $parentClass = PermissionWarden::class;
-            // Get all declared classes from Composer's autoloader
-            $classMap = require base_path('vendor/composer/autoload_classmap.php');
-            $classMap = array_filter($classMap, fn ($key) => str_contains($key, 'App\\Warden'), ARRAY_FILTER_USE_KEY);
+            $config = config('sentinel.wardens.permissions');
+
+            if (empty($config)) {
+                $classMap = require base_path('vendor/composer/autoload_classmap.php');
+                $classMap = array_filter($classMap, fn ($key) => str_contains($key, 'App\\Warden'), ARRAY_FILTER_USE_KEY);
+            } else {
+                $classMap = [$config => $config];
+            }
 
             foreach (array_keys($classMap) as $class) {
-                if ( ! class_exists($class)) {
+                if (! class_exists($class)) {
                     continue;
                 }
 
@@ -77,7 +88,7 @@ class SentinelManager
                         $value = $class;
                     }
                 } catch (ReflectionException $e) {
-                    // Skip problematic classes
+                    //
                 }
             }
             self::putCache('permissionsLib', $value);
