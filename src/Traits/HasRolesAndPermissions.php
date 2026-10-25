@@ -152,9 +152,10 @@ trait HasRolesAndPermissions
 
     public function hasPermission(PermissionContract|BackedEnum|string|int $permission): bool
     {
-        $permission = PermissionHelper::findOrFail($permission);
+        $permissionSlugs = $this->resolvePermissionSlugs($permission);
 
-        return $this->permissions()->whereKey($permission->getKey())->exists();
+        return [] !== $permissionSlugs
+            && $this->permissions()->whereIn('slug', $permissionSlugs)->exists();
     }
 
     public function hasPermissionTo(
@@ -192,12 +193,10 @@ trait HasRolesAndPermissions
         PermissionContract|BackedEnum|string|int $permission,
         ?Model $context = null,
     ): bool {
-        $permission = PermissionHelper::findOrFail($permission);
+        $permissionSlugs = $this->resolvePermissionSlugs($permission);
 
-        return $this->hasAnyPermissionThroughRole(
-            [$this->permissionSlug($permission)],
-            $context,
-        );
+        return [] !== $permissionSlugs
+            && $this->hasAnyPermissionThroughRole($permissionSlugs, $context);
     }
 
     /**
@@ -375,7 +374,15 @@ trait HasRolesAndPermissions
     /** @param Builder<static> $query */
     public function scopeWithPermission(Builder $query, mixed ...$permissions): void
     {
-        $permissionIds = $this->getAllPermissions(Arr::flatten($permissions))->modelKeys();
+        $permissionSlugs = collect(Arr::flatten($permissions))
+            ->flatMap(fn (mixed $permission): array => $this->resolvePermissionSlugs($permission))
+            ->unique()
+            ->values()
+            ->all();
+        $permissionIds = SentinelHelper::getPermissionClass()::query()
+            ->whereIn('slug', $permissionSlugs)
+            ->pluck(SentinelHelper::newPermissionModel()->getKeyName())
+            ->all();
 
         $query->where(function (Builder $query) use ($permissionIds): void {
             $query
@@ -483,7 +490,7 @@ trait HasRolesAndPermissions
         if ( ! str_ends_with($identity, '*')) {
             $permission = PermissionHelper::findOrFail($permission);
 
-            return [$this->permissionSlug($permission)];
+            return $this->permissionGrantSlugs($this->permissionSlug($permission));
         }
 
         $prefix = mb_substr($identity, 0, -1);
@@ -492,6 +499,20 @@ trait HasRolesAndPermissions
             array_keys(app(RegistryRepository::class)->permissions()),
             static fn (string $slug): bool => str_starts_with($slug, $prefix),
         ));
+    }
+
+    /** @return array<int, string> */
+    private function permissionGrantSlugs(string $permission): array
+    {
+        $segments = explode('.', $permission);
+        $permissionSlugs = [$permission];
+
+        while (count($segments) > 1) {
+            array_pop($segments);
+            $permissionSlugs[] = implode('.', $segments) . '.*';
+        }
+
+        return $permissionSlugs;
     }
 
     private function permissionIdentity(

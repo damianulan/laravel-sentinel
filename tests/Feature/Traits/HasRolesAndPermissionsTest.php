@@ -95,3 +95,36 @@ it('revokes a contextual role without affecting other contexts and invalidates c
         ->and($user->hasPermissionTo('projects.view', $secondProject))->toBeTrue()
         ->and($user->roleAssignments()->count())->toBe(1);
 });
+
+it('grants every permission below a directly assigned wildcard namespace', function (): void {
+    Permission::query()->create(['slug' => 'users.*', 'assignable' => true]);
+    Permission::query()->create(['slug' => 'users.create', 'assignable' => true]);
+    Permission::query()->create(['slug' => 'users.update', 'assignable' => true]);
+    Permission::query()->create(['slug' => 'projects.update', 'assignable' => true]);
+    $user = SentinelUser::query()->create();
+
+    $user->givePermissionsTo('users.*');
+
+    expect($user->hasPermission('users.create'))->toBeTrue()
+        ->and($user->hasPermissionTo('users.update'))->toBeTrue()
+        ->and(SentinelUser::query()->withPermission('users.update')->whereKey($user->getKey())->exists())->toBeTrue()
+        ->and($user->hasPermissionTo('projects.update'))->toBeFalse();
+});
+
+it('grants every permission below a wildcard namespace through a contextual role', function (): void {
+    $role = Role::query()->create(['slug' => 'user-manager', 'assignable' => true]);
+    $wildcardPermission = Permission::query()->create(['slug' => 'users.*', 'assignable' => true]);
+    Permission::query()->create(['slug' => 'users.profile.update', 'assignable' => true]);
+    Permission::query()->create(['slug' => 'projects.update', 'assignable' => true]);
+    $role->permissions()->attach($wildcardPermission);
+    $user = SentinelUser::query()->create();
+    $project = SentinelProject::query()->create();
+    $otherProject = SentinelProject::query()->create();
+
+    $user->assignRole('user-manager', $project);
+
+    expect($user->hasPermissionThroughRole('users.profile.update', $project))->toBeTrue()
+        ->and($user->hasPermissionTo('users.profile.update', $project))->toBeTrue()
+        ->and($user->hasPermissionTo('users.profile.update', $otherProject))->toBeFalse()
+        ->and($user->hasPermissionTo('projects.update', $project))->toBeFalse();
+});
