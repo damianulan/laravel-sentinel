@@ -1,161 +1,143 @@
 <?php
 
+declare(strict_types=1);
+
 namespace Sentinel\Console\Commands;
 
-use Exception;
 use Illuminate\Console\Command;
 use Illuminate\Support\Facades\DB;
-use Sentinel\Config\SentinelManager;
-use Sentinel\Exceptions\PermissionWardenException;
-use Sentinel\Exceptions\RoleWardenException;
-use Sentinel\Models\Permission;
-use Sentinel\Models\Role;
+use Sentinel\Cache\PermissionCache;
+use Sentinel\Contracts\RoleContract;
+use Sentinel\Helpers\SentinelHelper;
+use Sentinel\Registry\RegistryManifest;
+use Sentinel\Registry\RegistryRepository;
+use Throwable;
 
-class AssignRca extends Command
+final class AssignRca extends Command
 {
-    /**
-     * The name and signature of the console command.
-     *
-     * @var string
-     */
     protected $signature = 'sentinel:run';
 
-    /**
-     * The console command description.
-     *
-     * @var string
-     */
-    protected $description = 'Run Role and Permission assignments';
+    protected $description = 'Synchronize registered Sentinel roles and permissions';
 
-    private $rolesLib;
+    public function __construct(
+        private readonly RegistryRepository $registries,
+        private readonly PermissionCache $permissionCache,
+    ) {
+        parent::__construct();
+    }
 
-    private $permissionsLib;
-
-    private $bar;
-
-    /**
-     * Execute the console command.
-     */
-    public function handle(): void
+    public function handle(): int
     {
         try {
-            DB::beginTransaction();
-            $rolesLib = SentinelManager::getRolesLibNamespace();
-            $permissionsLib = SentinelManager::getPermissionsLibNamespace();
-            $this->line('Loading Sentinel roles and permissions...');
+            $manifest = $this->registries->manifest();
 
-            if (empty($rolesLib)) {
-                throw new RoleWardenException();
-            }
-            $this->rolesLib = new $rolesLib();
+            DB::transaction(fn () => $this->synchronize($manifest));
 
-            if (empty($permissionsLib)) {
-                throw new PermissionWardenException();
-            }
-            $this->permissionsLib = new $permissionsLib();
+            $this->permissionCache->invalidateAll();
 
-            $roles = $this->rolesLib::values();
-            $permissions = $this->permissionsLib::values();
-            $progressCount = count($roles) + count($permissions);
-            $this->bar = $this->output->createProgressBar($progressCount);
-            $this->bar->start();
+            $this->components->info(sprintf(
+                'Synchronized %d roles and %d permissions from %d registries.',
+                count($manifest->roles),
+                count($manifest->permissions),
+                $manifest->registryCount(),
+            ));
 
-            $this->setRoles();
-            $this->setPermissions();
+            return self::SUCCESS;
+        } catch (Throwable $exception) {
+            $this->components->error($exception->getMessage());
 
-            $this->bar->finish();
-            $this->newLine();
-            $this->info('Sentinel roles and permissions loaded successfully!');
-
-            $toDeletePermissions = Permission::whereNotIn('slug', $permissions)->get();
-            $toDeleteRoles = Role::whereNotIn('slug', $roles)->get();
-            $deletionRecords = $toDeletePermissions->count() + $toDeleteRoles->count();
-
-            if ($deletionRecords > 0) {
-                $this->line('Deleting outdated ' . $toDeletePermissions->count() . ' permissions and ' . $toDeleteRoles->count() . ' roles');
-                $bar = $this->output->createProgressBar($deletionRecords);
-                $bar->start();
-                foreach ($toDeletePermissions as $permission) {
-                    $permission->delete();
-                    $bar->advance();
-                }
-                foreach ($toDeleteRoles as $role) {
-                    $role->delete();
-                    $bar->advance();
-                }
-                $bar->finish();
-                $this->newLine();
-                $this->info('Outdated Sentinel roles and permissions deleted successfully!');
-            }
-            DB::commit();
-
-            SentinelManager::flushCache();
-            SentinelManager::flushPermissionCheckCache();
-        } catch (Exception $e) {
-            DB::rollBack();
-            $this->error($e->getMessage());
+            return self::FAILURE;
         }
     }
 
-    public function setRoles(): void
+    private function synchronize(RegistryManifest $manifest): void
     {
-        foreach ($this->rolesLib::values() as $name) {
-            $this->bar->advance();
-            if (Role::whereSlug($name)->exists()) {
-                continue;
-            }
-            $this->{$name} = new Role();
-            $this->{$name}->slug = $name;
-            $this->{$name}->assignable = in_array($name, $this->rolesLib::assignable());
-            $this->{$name}->save();
-        }
+        $this->upsertRoles($manifest->roles);
+        $this->upsertPermissions($manifest->permissions);
+        $this->deleteOutdatedRecords(array_keys($manifest->roles), array_keys($manifest->permissions));
+        $this->syncRolePermissions($manifest->rolePermissions, array_keys($manifest->permissions));
     }
 
-    private function setPermissions(): void
+    /** @param array<string, bool> $roles */
+    private function upsertRoles(array $roles): void
     {
-        foreach ($this->permissionsLib::nonassignable() as $slug => $roles) {
-            $this->bar->advance();
-            if (Permission::whereSlug($slug)->exists()) {
-                continue;
-            }
-            $perm = new Permission();
-            $perm->slug = $slug;
-            $perm->assignable = false;
-            if ($perm->save()) {
-                $this->attach($perm, $roles);
-            }
+        if ([] === $roles) {
+            return;
         }
 
-        foreach ($this->permissionsLib::assignable() as $slug => $roles) {
-            $this->bar->advance();
-            if (Permission::whereSlug($slug)->exists()) {
-                continue;
-            }
-            $perm = new Permission();
-            $perm->slug = $slug;
-            $perm->assignable = true;
-            if ($perm->save()) {
-                $this->attach($perm, $roles);
-            }
-        }
+        SentinelHelper::getRoleClass()::query()->upsert(
+            $this->records($roles),
+            uniqueBy: ['slug'],
+            update: ['assignable'],
+        );
     }
 
-    private function attach(Permission $permission, array $to): void
+    /** @param array<string, bool> $permissions */
+    private function upsertPermissions(array $permissions): void
     {
-        $roles = $this->rolesLib::values();
-
-        foreach ($to as $slug) {
-            if ('admins' === $slug) {
-                foreach ($this->rolesLib::admins() as $role) {
-                    $this->{$role}->permissions()->attach($permission);
-                }
-            } elseif ('*' === $slug) {
-                foreach ($roles as $role) {
-                    $this->{$role}->permissions()->attach($permission);
-                }
-            } else {
-                $this->{$slug}->permissions()->attach($permission);
-            }
+        if ([] === $permissions) {
+            return;
         }
+
+        SentinelHelper::getPermissionClass()::query()->upsert(
+            $this->records($permissions),
+            uniqueBy: ['slug'],
+            update: ['assignable'],
+        );
+    }
+
+    /**
+     * @param  array<string, bool>  $definitions
+     * @return array<int, array{slug: string, assignable: bool}>
+     */
+    private function records(array $definitions): array
+    {
+        $records = [];
+
+        foreach ($definitions as $slug => $assignable) {
+            $records[] = compact('slug', 'assignable');
+        }
+
+        return $records;
+    }
+
+    /**
+     * @param  array<string, array<int, string>>  $rolePermissions
+     * @param  array<int, string>  $allPermissions
+     */
+    private function syncRolePermissions(array $rolePermissions, array $allPermissions): void
+    {
+        $permissionClass = SentinelHelper::getPermissionClass();
+        $roleClass = SentinelHelper::getRoleClass();
+        $permissionModel = SentinelHelper::newPermissionModel();
+        $permissionIds = $permissionClass::query()->pluck($permissionModel->getKeyName(), 'slug');
+
+        $roleClass::query()
+            ->select([SentinelHelper::newRoleModel()->getKeyName(), 'slug'])
+            ->each(function (RoleContract $role) use ($rolePermissions, $allPermissions, $permissionIds): void {
+                $slug = $role->getAttribute('slug');
+
+                if ( ! is_string($slug)) {
+                    return;
+                }
+
+                $permissions = $rolePermissions[$slug] ?? [];
+
+                if (in_array('*', $permissions, true)) {
+                    $permissions = $allPermissions;
+                }
+
+                $role->permissions()->sync($permissionIds->only($permissions)->values()->all());
+            });
+    }
+
+    /**
+     * @param  array<int, string>  $roles
+     * @param  array<int, string>  $permissions
+     */
+    private function deleteOutdatedRecords(array $roles, array $permissions): void
+    {
+        SentinelHelper::getPermissionClass()::query()->whereNotIn('slug', $permissions)->delete();
+        SentinelHelper::getRoleClass()::query()->whereNotIn('slug', $roles)->delete();
     }
 }

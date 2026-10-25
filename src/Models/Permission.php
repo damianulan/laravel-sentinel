@@ -1,44 +1,29 @@
 <?php
 
+declare(strict_types=1);
+
 namespace Sentinel\Models;
 
 use Illuminate\Database\Eloquent\Builder;
-use Illuminate\Database\Eloquent\Collection;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsToMany;
-use Illuminate\Support\Carbon;
-use Sentinel\Config\SentinelManager;
-use Sentinel\Config\Warden\PermissionWarden;
+use Illuminate\Support\Facades\Lang;
 use Sentinel\Contracts\PermissionContract;
-use Sentinel\Exceptions\PermissionWardenException;
+use Sentinel\Contracts\RoleContract;
+use Sentinel\Helpers\SentinelHelper;
 
 /**
- * @property int $id
- * @property string $slug Permission shortname key.
- * @property int $assignable Determines if permission is assignable throughout the platform.
- * @property Carbon|null $created_at
- * @property Carbon|null $updated_at
- * @property-read Collection<int, Role> $roles
+ * @property int|string $id
+ * @property string $slug
+ * @property bool $assignable
  * @property-read int|null $roles_count
  *
- * @method static Builder<static>|Permission newModelQuery()
- * @method static Builder<static>|Permission newQuery()
- * @method static Builder<static>|Permission query()
- * @method static Builder<static>|Permission whereAssignable($value)
- * @method static Builder<static>|Permission whereCreatedAt($value)
- * @method static Builder<static>|Permission whereId($value)
- * @method static Builder<static>|Permission whereSlug($value)
- * @method static Builder<static>|Permission whereUpdatedAt($value)
- *
- * @mixin \Eloquent
+ * @method static Builder<static> whereAssignable()
+ * @method static Builder<static> whereSlug(string ...$slugs)
  */
 class Permission extends Model implements PermissionContract
 {
-    public $timestamps = true;
-
     protected $table = 'permissions';
-
-    protected $primaryKey = 'id';
 
     protected $fillable = [
         'slug',
@@ -47,52 +32,60 @@ class Permission extends Model implements PermissionContract
 
     public static function findBySlug(string $slug): ?static
     {
-        return static::where('slug', $slug)->first();
+        return static::query()->where('slug', $slug)->first();
     }
 
+    /** @return array<int|string, string> */
     public static function getSelectList(): array
     {
+        $query = static::query();
+        $permissions = $query
+            ->where('assignable', true)
+            ->orderBy('slug')
+            ->pluck('slug', $query->getModel()->getKeyName());
         $output = [];
-        $permissionsLib = SentinelManager::getPermissionsLib();
-        $permissions = self::where('assignable', 1)->get();
-        if ( ! $permissions->isEmpty()) {
-            foreach ($permissions as $permission) {
-                $name = $permissionsLib::labels()[$permission->slug] ?? $permission->slug;
-                $output[$permission->getKey()] = $name;
+
+        foreach ($permissions as $key => $slug) {
+            if ( ! is_string($slug)) {
+                continue;
             }
+
+            $translationKey = "gates.permissions.{$slug}";
+            $translation = __($translationKey);
+            $output[$key] = Lang::has($translationKey) && is_string($translation)
+                ? $translation
+                : $slug;
         }
 
         return $output;
     }
 
-    public static function getPermissionsLib()
-    {
-        $value = SentinelManager::getPermissionsLibNamespace();
-
-        $class = null;
-        if ( ! empty($value)) {
-            $class = new $value();
-        }
-
-        if (empty($value) || ! ($class instanceof PermissionWarden)) {
-            throw new PermissionWardenException();
-        }
-
-        return $class;
-    }
-
+    /** @return BelongsToMany<Model&RoleContract, $this> */
     public function roles(): BelongsToMany
     {
-        return $this->belongsToMany(config('sentinel.models.role'), 'roles_permissions');
+        return $this->belongsToMany(
+            SentinelHelper::getRoleClass(),
+            'roles_permissions',
+        );
     }
 
-    public function scopeWhereSlug(Builder $query, ...$slugs): void
+    /** @param Builder<static> $query */
+    public function scopeWhereSlug(Builder $query, string ...$slugs): void
     {
         $query->whereIn('slug', $slugs);
     }
 
+    /** @param Builder<static> $query */
     public function scopeWhereAssignable(Builder $query): void
     {
-        $query->where('assignable', 1);
+        $query->where('assignable', true);
+    }
+
+    /** @return array<string, string> */
+    protected function casts(): array
+    {
+        return [
+            'assignable' => 'boolean',
+        ];
     }
 }

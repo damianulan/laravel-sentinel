@@ -1,13 +1,15 @@
 <?php
 
+declare(strict_types=1);
+
 namespace Sentinel\Exceptions;
 
-use Exception;
+use RuntimeException;
 
-class PermissionNotFound extends Exception
+final class PermissionNotFound extends RuntimeException
 {
     public function __construct()
     {
-        parent::__construct('Given permission was not found!', 500);
+        parent::__construct('The requested Sentinel permission was not found.');
     }
 }

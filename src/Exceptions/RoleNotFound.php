@@ -1,13 +1,15 @@
 <?php
 
+declare(strict_types=1);
+
 namespace Sentinel\Exceptions;
 
-use Exception;
+use RuntimeException;
 
-class RoleNotFound extends Exception
+final class RoleNotFound extends RuntimeException
 {
     public function __construct()
     {
-        parent::__construct('Given role was not found!', 500);
+        parent::__construct('The requested Sentinel role was not found.');
     }
 }

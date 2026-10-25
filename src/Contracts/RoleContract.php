@@ -1,43 +1,26 @@
 <?php
 
+declare(strict_types=1);
+
 namespace Sentinel\Contracts;
 
-use Illuminate\Database\Eloquent\Builder;
-use Illuminate\Database\Eloquent\Relations\BelongsToMany;
 use Illuminate\Database\Eloquent\Model;
+use Illuminate\Database\Eloquent\Relations\BelongsToMany;
 
 /** @mixin Model */
 interface RoleContract
 {
-    /**
-     * Finds role instance by its slug istead of its key.
-     */
     public static function findBySlug(string $slug): ?static;
 
-    /**
-     * Get Role Key by its slug.
-     */
-    public static function getId(string $slug): ?string;
+    public static function getId(string $slug): int|string|null;
 
-    /**
-     * Get a list of assignable roles by their slugs.
-     */
+    /** @return array<int|string, string> */
     public static function getSelectList(): array;
 
-    /**
-     * Returns permissions that role is assigned to.
-     */
+    /** @return BelongsToMany<Model&PermissionContract, covariant Model> */
     public function permissions(): BelongsToMany;
 
-    /**
-     * Get roles by their slugs.
-     *
-     * @param  mixed  ...$slugs
-     */
-    public function scopeWhereSlug(Builder $query, ...$slugs): void;
+    public function getKey(): mixed;
 
-    /**
-     * Get only assignable roles.
-     */
-    public function scopeWhereAssignable(Builder $query): void;
+    public function getAttribute(string $key): mixed;
 }

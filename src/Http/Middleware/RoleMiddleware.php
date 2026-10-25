@@ -1,22 +1,21 @@
 <?php
 
+declare(strict_types=1);
+
 namespace Sentinel\Http\Middleware;
 
 use Closure;
 use Illuminate\Http\Request;
-use Illuminate\Support\Facades\Auth;
+use Symfony\Component\HttpFoundation\Response;
 
-class RoleMiddleware
+final class RoleMiddleware
 {
-    /**
-     * Check role for authenticated user.
-     *
-     * @param  mixed  $role
-     * @return void
-     */
-    public function handle(Request $request, Closure $next, $role)
+    /** @param Closure(Request): Response $next */
+    public function handle(Request $request, Closure $next, string $role): Response
     {
-        if ( ! Auth::check() || ! Auth::user()->hasRole($role)) {
+        $user = $request->user();
+
+        if ( ! is_object($user) || ! method_exists($user, 'hasRole') || ! call_user_func([$user, 'hasRole'], $role)) {
             abort(403);
         }
 

@@ -1,16 +1,13 @@
 <?php
 
+declare(strict_types=1);
+
 use Sentinel\Contexts\System;
 use Sentinel\Models\Permission;
 use Sentinel\Models\Role;
 
 return [
     'default_context' => System::class,
-
-    'wardens' => [
-        'roles' => "App\Warden\RolesLib",
-        'permissions' => "App\Warden\PermissionsLib",
-    ],
 
     'models' => [
         'role' => Role::class,
@@ -20,6 +17,8 @@ return [
     'root' => 'root',
 
     'cache' => [
+        'enabled' => true,
+
         'driver' => 'default',
 
         'key' => 'sentinel.cache',

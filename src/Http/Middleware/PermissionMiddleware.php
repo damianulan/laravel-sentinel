@@ -1,23 +1,29 @@
 <?php
 
+declare(strict_types=1);
+
 namespace Sentinel\Http\Middleware;
 
 use Closure;
+use Illuminate\Contracts\Auth\Access\Authorizable;
 use Illuminate\Http\Request;
-use Illuminate\Support\Facades\Auth;
+use Symfony\Component\HttpFoundation\Response;
 
-class PermissionMiddleware
+final class PermissionMiddleware
 {
-    /**
-     * Check permission for authenticated user.
-     *
-     * @param  mixed  $permission
-     * @param  mixed  $context
-     * @return void
-     */
-    public function handle(Request $request, Closure $next, $permission, $context = null)
-    {
-        if ( ! Auth::check() || Auth::user()->cannot($permission, $context)) {
+    /** @param Closure(Request): Response $next */
+    public function handle(
+        Request $request,
+        Closure $next,
+        string $permission,
+        ?string $contextParameter = null,
+    ): Response {
+        $user = $request->user();
+        $context = null === $contextParameter
+            ? null
+            : $request->route($contextParameter);
+
+        if ( ! $user instanceof Authorizable || ! $user->can($permission, $context)) {
             abort(403);
         }
 

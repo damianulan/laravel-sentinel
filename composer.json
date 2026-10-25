@@ -35,10 +35,7 @@
   "autoload": {
     "psr-4": {
       "Sentinel\\": "src"
-    },
-    "files": [
-      "src/helpers.php"
-    ]
+    }
   },
   "autoload-dev": {
     "psr-4": {
@@ -55,10 +52,7 @@
     "laravel": {
       "providers": [
         "Sentinel\\SentinelServiceProvider"
-      ],
-      "aliases": {
-        "Sentinel": "Sentinel\\Facades\\Sentinel"
-      }
+      ]
     }
   }
 }

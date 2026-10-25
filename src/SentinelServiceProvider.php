@@ -1,125 +1,148 @@
 <?php
 
+declare(strict_types=1);
+
 namespace Sentinel;
 
 use Illuminate\Contracts\Auth\Access\Authorizable;
 use Illuminate\Contracts\Auth\Access\Gate;
-use Illuminate\Contracts\Foundation\Application;
 use Illuminate\Database\Eloquent\Model;
+use Illuminate\Routing\Router;
 use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\Blade;
+use Illuminate\Support\Facades\Cache;
 use Illuminate\Support\ServiceProvider;
+use Sentinel\Cache\PermissionCache;
 use Sentinel\Console\Commands\AssignRca;
-use Sentinel\Console\Commands\Generators\MakePermissionsLibCommand;
-use Sentinel\Console\Commands\Generators\MakeRolesLibCommand;
-use Sentinel\Traits\HasRolesAndPermissions;
+use Sentinel\Helpers\SentinelHelper;
+use Sentinel\Http\Middleware\PermissionMiddleware;
+use Sentinel\Http\Middleware\RoleMiddleware;
+use Sentinel\Registry\RegistryDiscovery;
+use Sentinel\Registry\RegistryRepository;
 
-/**
- * @author Damian Ułan <damian.ulan@protonmail.com>
- * @copyright 2025 damianulan
- * @license MIT
- */
-class SentinelServiceProvider extends ServiceProvider
+final class SentinelServiceProvider extends ServiceProvider
 {
-    /**
-     * Register the application services.
-     */
     public function register(): void
     {
         $this->mergeConfigFrom(__DIR__ . '/../config/sentinel.php', 'sentinel');
+
+        $this->app->singleton(RegistryRepository::class, fn (): RegistryRepository => new RegistryRepository(
+            new RegistryDiscovery(
+                $this->app->basePath('vendor/composer/autoload_classmap.php'),
+                $this->app->basePath(),
+            ),
+        ));
+
+        $this->app->singleton(PermissionCache::class, fn (): PermissionCache => new PermissionCache(
+            store: Cache::store(SentinelHelper::getSentinelCacheStore()),
+            prefix: SentinelHelper::getSentinelCacheKey(),
+            ttl: SentinelHelper::getSentinelCacheTtl(),
+            enabled: SentinelHelper::isSentinelCacheEnabled(),
+        ));
     }
 
-    /**
-     * When this method is apply we have all laravel providers and methods available
-     */
-    public function boot(): void
+    public function boot(Router $router): void
     {
+        $migrations = $this->migrationPublishers();
 
-        $this->loadTranslationsFrom(__DIR__ . '/../lang', 'sentinel');
-
-        $this->publishes($this->migrationPublishers(), 'sentinel-migrations');
-
-        $this->publishes([
-            __DIR__ . '/../lang' => $this->app->langPath('vendor/sentinel'),
-        ], 'sentinel-langs');
-
+        $this->publishesMigrations($migrations, 'sentinel-migrations');
         $this->publishes([
             __DIR__ . '/../config/sentinel.php' => config_path('sentinel.php'),
         ], 'sentinel-config');
-
-        $this->publishes(array_merge([
-            __DIR__ . '/../stubs' => base_path('stubs'),
+        $this->publishes([
             __DIR__ . '/../config/sentinel.php' => config_path('sentinel.php'),
-        ], $this->migrationPublishers()), 'sentinel');
+            ...$migrations,
+        ], 'sentinel');
 
-        $this->registerCommands();
-        $this->bootRolesAndPermissions();
+        if ($this->app->runningInConsole()) {
+            $this->commands([AssignRca::class]);
+        }
+
+        $router->aliasMiddleware('sentinel.role', RoleMiddleware::class);
+        $router->aliasMiddleware('sentinel.permission', PermissionMiddleware::class);
+
+        $this->registerBladeConditions();
+        $this->registerGateHook();
     }
 
-    public function registerCommands(): void
-    {
-        $this->commands([
-            AssignRca::class,
-            MakePermissionsLibCommand::class,
-            MakeRolesLibCommand::class,
-        ]);
-    }
-
+    /** @return array<string, string> */
     private function migrationPublishers(): array
     {
-        $date = date('Y_m_d', time());
-        $time = (int) date('His', time());
-
-        return [
-            __DIR__ . '/../database/migrations/create_roles_table.php.stub' => database_path('migrations/' . $date . '_' . $time . '_create_roles_table.php'),
-            __DIR__ . '/../database/migrations/create_permissions_table.php.stub' => database_path('migrations/' . $date . '_' . $time + 1 . '_create_permissions_table.php'),
-            __DIR__ . '/../database/migrations/create_has_permissions_table.php.stub' => database_path('migrations/' . $date . '_' . $time + 2 . '_create_has_permissions_table.php'),
-            __DIR__ . '/../database/migrations/create_roles_permissions_table.php.stub' => database_path('migrations/' . $date . '_' . $time + 3 . '_create_roles_permissions_table.php'),
-            __DIR__ . '/../database/migrations/create_has_roles_table.php.stub' => database_path('migrations/' . $date . '_' . $time + 4 . '_create_has_roles_table.php'),
+        $timestamp = now()->startOfSecond();
+        $migrations = [
+            'create_roles_table.php',
+            'create_permissions_table.php',
+            'create_has_permissions_table.php',
+            'create_roles_permissions_table.php',
+            'create_has_roles_table.php',
         ];
+
+        $publishers = [];
+
+        foreach ($migrations as $offset => $migration) {
+            $publishers[__DIR__ . "/../database/migrations/{$migration}.stub"] = database_path(sprintf(
+                'migrations/%s_%s',
+                $timestamp->copy()->addSeconds($offset)->format('Y_m_d_His'),
+                $migration,
+            ));
+        }
+
+        return $publishers;
     }
 
-    private function bootRolesAndPermissions(): void
+    private function registerBladeConditions(): void
     {
-        Blade::if('role', function ($role) {
+        Blade::if('role', function (mixed $role): bool {
             $user = Auth::user();
-            if ($user && class_uses_trait(HasRolesAndPermissions::class, $user::class)) {
-                return $user->hasRole($role);
-            }
 
-            return false;
+            return null !== $user
+                && method_exists($user, 'hasRole')
+                && (bool) call_user_func([$user, 'hasRole'], $role);
         });
 
-        Blade::if('admin', function () {
+        Blade::if('admin', function (): bool {
             $user = Auth::user();
-            if ($user && class_uses_trait(HasRolesAndPermissions::class, $user::class)) {
-                return $user->isAdmin();
-            }
 
-            return false;
+            return null !== $user
+                && method_exists($user, 'isAdmin')
+                && (bool) call_user_func([$user, 'isAdmin']);
         });
 
-        Blade::if('root', fn () => Auth::user()->hasRole(config('sentinel.root')));
+        Blade::if('root', function (): bool {
+            $user = Auth::user();
 
-        $this->callAfterResolving(Gate::class, function (Gate $gate, Application $app): void {
-            $this->registerPermission($gate);
+            return null !== $user
+                && method_exists($user, 'isRoot')
+                && (bool) call_user_func([$user, 'isRoot']);
         });
     }
 
-    private function registerPermission(Gate $gate): void
+    private function registerGateHook(): void
     {
-        $gate->before(function (Authorizable $user, string $ability, array &$args = []) {
-            $context = null;
-            foreach ($args as $arg) {
-                if ( ! $context && $arg instanceof Model) {
-                    $context = $arg;
+        $this->callAfterResolving(Gate::class, function (Gate $gate): void {
+            $gate->before(function (Authorizable $user, string $ability, array $arguments = []): ?bool {
+                if ( ! method_exists($user, 'hasPermissionTo')) {
+                    return null;
                 }
-            }
 
-            if (method_exists($user, 'hasPermissionTo')) {
-                return $user->hasPermissionTo($ability, $context) ?: null;
-            }
+                if ( ! array_key_exists($ability, app(RegistryRepository::class)->permissions())) {
+                    return null;
+                }
+
+                $context = null;
+
+                foreach ($arguments as $argument) {
+                    if ($argument instanceof Model) {
+                        $context = $argument;
+
+                        break;
+                    }
+                }
+
+                return call_user_func([$user, 'hasPermissionTo'], $ability, $context)
+                    ? true
+                    : null;
+            });
         });
-
     }
 }

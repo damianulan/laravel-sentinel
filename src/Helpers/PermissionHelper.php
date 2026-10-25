@@ -1,35 +1,49 @@
 <?php
 
+declare(strict_types=1);
+
 namespace Sentinel\Helpers;
 
 use BackedEnum;
+use Illuminate\Database\Eloquent\Model;
 use Sentinel\Contracts\PermissionContract;
 use Sentinel\Exceptions\PermissionNotFound;
-use Sentinel\Helpers\SentinelHelper;
 
-class PermissionHelper
+final class PermissionHelper
 {
-    public static function findOrFail(
-        mixed $permission_id
-    ): PermissionContract
+    /** @return Model&PermissionContract */
+    public static function findOrFail(mixed $permission): Model
     {
-        if($permission_id instanceof BackedEnum){
-            $permission_id = $permission_id->value;
+        if ($permission instanceof PermissionContract && $permission instanceof Model) {
+            return $permission;
         }
 
-        $perm_class = SentinelHelper::getPermissionClass();
-        if ( ! $permission_id instanceof PermissionContract) {
-            if(is_int($permission_id)){
-                $permission_id = $perm_class::find($permission_id);
-            } else {
-                $permission_id = $perm_class::findBySlug($permission_id) ?? $perm_class::find($permission_id);
-            }
+        if ($permission instanceof BackedEnum) {
+            $permission = $permission->value;
         }
 
-        if(empty($permission_id)){
+        $permissionClass = SentinelHelper::getPermissionClass();
+        $resolvedPermission = is_int($permission)
+            ? $permissionClass::query()->find($permission)
+            : self::findStringPermission($permissionClass, $permission);
+
+        if (null === $resolvedPermission) {
             throw new PermissionNotFound;
         }
 
-        return $permission_id;
+        return $resolvedPermission;
+    }
+
+    /**
+     * @param  class-string<Model&PermissionContract>  $permissionClass
+     * @return (Model&PermissionContract)|null
+     */
+    private static function findStringPermission(string $permissionClass, mixed $permission): ?Model
+    {
+        if ( ! is_string($permission) || '' === $permission) {
+            return null;
+        }
+
+        return $permissionClass::findBySlug($permission) ?? $permissionClass::query()->find($permission);
     }
 }
