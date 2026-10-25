@@ -20,7 +20,5 @@ interface RoleContract
     /** @return BelongsToMany<Model&PermissionContract, covariant Model> */
     public function permissions(): BelongsToMany;
 
-    public function getKey(): mixed;
-
     public function getAttribute(string $key): mixed;
 }
