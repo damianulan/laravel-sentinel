@@ -3,6 +3,7 @@
 declare(strict_types=1);
 
 use Illuminate\Database\Schema\Blueprint;
+use Illuminate\Support\Facades\Log;
 use Illuminate\Support\Facades\Schema;
 use Sentinel\Models\Permission;
 use Sentinel\Models\Role;
@@ -127,4 +128,36 @@ it('grants every permission below a wildcard namespace through a contextual role
         ->and($user->hasPermissionTo('users.profile.update', $project))->toBeTrue()
         ->and($user->hasPermissionTo('users.profile.update', $otherProject))->toBeFalse()
         ->and($user->hasPermissionTo('projects.update', $project))->toBeFalse();
+});
+
+it('logs a warning and returns false when checked roles do not exist', function (): void {
+    $user = SentinelUser::query()->create();
+
+    Log::expects('warning')
+        ->times(3)
+        ->with('Sentinel role [{role}] was checked but does not exist.', [
+            'role' => 'missing-role',
+        ]);
+
+    expect($user->hasRole('missing-role'))->toBeFalse()
+        ->and($user->hasRoles(['missing-role']))->toBeFalse()
+        ->and($user->hasAnyRoles(['missing-role']))->toBeFalse();
+});
+
+it('logs a warning and returns false when checked permissions do not exist', function (): void {
+    $root = Role::query()->create(['slug' => 'root', 'assignable' => false]);
+    $user = SentinelUser::query()->create();
+    $rootUser = SentinelUser::query()->create();
+    $rootUser->assignRole($root);
+
+    Log::expects('warning')
+        ->times(4)
+        ->with('Sentinel permission [{permission}] was checked but does not exist.', [
+            'permission' => 'missing.permission',
+        ]);
+
+    expect($user->hasPermission('missing.permission'))->toBeFalse()
+        ->and($user->hasPermissionTo('missing.permission'))->toBeFalse()
+        ->and($user->hasPermissionThroughRole('missing.permission'))->toBeFalse()
+        ->and($rootUser->hasPermissionTo('missing.permission'))->toBeFalse();
 });

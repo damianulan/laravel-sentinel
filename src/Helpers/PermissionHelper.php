@@ -14,6 +14,18 @@ final class PermissionHelper
     /** @return Model&PermissionContract */
     public static function findOrFail(mixed $permission): Model
     {
+        $resolvedPermission = self::find($permission);
+
+        if (null === $resolvedPermission) {
+            throw new PermissionNotFound;
+        }
+
+        return $resolvedPermission;
+    }
+
+    /** @return (Model&PermissionContract)|null */
+    public static function find(mixed $permission): ?Model
+    {
         if ($permission instanceof PermissionContract && $permission instanceof Model) {
             return $permission;
         }
@@ -23,15 +35,10 @@ final class PermissionHelper
         }
 
         $permissionClass = SentinelHelper::getPermissionClass();
-        $resolvedPermission = is_int($permission)
+
+        return is_int($permission)
             ? $permissionClass::query()->find($permission)
             : self::findStringPermission($permissionClass, $permission);
-
-        if (null === $resolvedPermission) {
-            throw new PermissionNotFound;
-        }
-
-        return $resolvedPermission;
     }
 
     /**

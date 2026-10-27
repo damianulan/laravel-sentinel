@@ -15,6 +15,7 @@ use Illuminate\Support\Arr;
 use Illuminate\Support\Collection;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Lang;
+use Illuminate\Support\Facades\Log;
 use RuntimeException;
 use Sentinel\Cache\PermissionCache;
 use Sentinel\Contracts\PermissionContract;
@@ -116,7 +117,11 @@ trait HasRolesAndPermissions
 
     public function hasRole(RoleContract|BackedEnum|string|int $role): bool
     {
-        $role = RoleHelper::findOrFail($role);
+        $role = $this->findRoleForCheck($role);
+
+        if (null === $role) {
+            return false;
+        }
 
         return $this->roles()->whereKey($role->getKey())->exists();
     }
@@ -130,7 +135,11 @@ trait HasRolesAndPermissions
     /** @param array<int, RoleContract|BackedEnum|string|int> $roles */
     public function hasRoles(array $roles): bool
     {
-        $roleIds = $this->roleIds($roles);
+        $roleIds = $this->roleIdsForCheck($roles);
+
+        if (null === $roleIds) {
+            return false;
+        }
 
         if ([] === $roleIds) {
             return true;
@@ -145,9 +154,11 @@ trait HasRolesAndPermissions
     /** @param array<int, RoleContract|BackedEnum|string|int> $roles */
     public function hasAnyRoles(array $roles): bool
     {
-        $roleIds = $this->roleIds($roles);
+        $roleIds = $this->roleIdsForCheck($roles);
 
-        return [] !== $roleIds && $this->roles()->whereKey($roleIds)->exists();
+        return null !== $roleIds
+            && [] !== $roleIds
+            && $this->roles()->whereKey($roleIds)->exists();
     }
 
     public function hasPermission(PermissionContract|BackedEnum|string|int $permission): bool
@@ -163,20 +174,19 @@ trait HasRolesAndPermissions
         ?Model $context = null,
     ): bool {
         $cacheIdentity = $this->permissionIdentity($permission);
+        $permissionSlugs = $this->resolvePermissionSlugs($permission);
+
+        if ([] === $permissionSlugs) {
+            return false;
+        }
 
         return $this->permissionCache()->remember(
             $this,
             $cacheIdentity,
             $context,
-            function () use ($permission, $context): bool {
+            function () use ($permissionSlugs, $context): bool {
                 if ($this->isRoot()) {
                     return true;
-                }
-
-                $permissionSlugs = $this->resolvePermissionSlugs($permission);
-
-                if ([] === $permissionSlugs) {
-                    return false;
                 }
 
                 if ($this->hasAnyPermissionThroughRole($permissionSlugs, $context)) {
@@ -408,6 +418,27 @@ trait HasRolesAndPermissions
             ->all();
     }
 
+    /**
+     * @param  array<int, RoleContract|BackedEnum|string|int>  $roles
+     * @return array<int, mixed>|null
+     */
+    private function roleIdsForCheck(array $roles): ?array
+    {
+        $roleIds = [];
+
+        foreach (Arr::flatten($roles) as $role) {
+            $resolvedRole = $this->findRoleForCheck($role);
+
+            if (null === $resolvedRole) {
+                return null;
+            }
+
+            $roleIds[] = $resolvedRole->getKey();
+        }
+
+        return array_values(array_unique($roleIds));
+    }
+
     /** @return array{0: string, 1: int|string} */
     private function contextIdentity(?Model $context = null): array
     {
@@ -488,17 +519,80 @@ trait HasRolesAndPermissions
         $identity = $this->permissionIdentity($permission);
 
         if ( ! str_ends_with($identity, '*')) {
-            $permission = PermissionHelper::findOrFail($permission);
+            $permission = $this->findPermissionForCheck($permission);
+
+            if (null === $permission) {
+                return [];
+            }
 
             return $this->permissionGrantSlugs($this->permissionSlug($permission));
         }
 
         $prefix = mb_substr($identity, 0, -1);
 
-        return array_values(array_filter(
+        $permissionSlugs = array_values(array_filter(
             array_keys(app(RegistryRepository::class)->permissions()),
             static fn (string $slug): bool => str_starts_with($slug, $prefix),
         ));
+
+        if ([] === $permissionSlugs) {
+            $this->warnAboutMissingPermission($permission);
+        }
+
+        return $permissionSlugs;
+    }
+
+    /** @return (Model&RoleContract)|null */
+    private function findRoleForCheck(RoleContract|BackedEnum|string|int $role): ?Model
+    {
+        $resolvedRole = RoleHelper::find($role);
+
+        if (null === $resolvedRole) {
+            Log::warning('Sentinel role [{role}] was checked but does not exist.', [
+                'role' => $this->checkedIdentifier($role),
+            ]);
+        }
+
+        return $resolvedRole;
+    }
+
+    /** @return (Model&PermissionContract)|null */
+    private function findPermissionForCheck(
+        PermissionContract|BackedEnum|string|int $permission,
+    ): ?Model {
+        $resolvedPermission = PermissionHelper::find($permission);
+
+        if (null === $resolvedPermission) {
+            $this->warnAboutMissingPermission($permission);
+        }
+
+        return $resolvedPermission;
+    }
+
+    private function warnAboutMissingPermission(
+        PermissionContract|BackedEnum|string|int $permission,
+    ): void {
+        Log::warning('Sentinel permission [{permission}] was checked but does not exist.', [
+            'permission' => $this->checkedIdentifier($permission),
+        ]);
+    }
+
+    private function checkedIdentifier(
+        RoleContract|PermissionContract|BackedEnum|string|int $authorization,
+    ): string|int {
+        if ($authorization instanceof BackedEnum) {
+            return $authorization->value;
+        }
+
+        if ($authorization instanceof Model) {
+            $key = $authorization->getKey();
+
+            return is_int($key) || is_string($key) ? $key : $authorization::class;
+        }
+
+        return is_int($authorization) || is_string($authorization)
+            ? $authorization
+            : $authorization::class;
     }
 
     /** @return array<int, string> */

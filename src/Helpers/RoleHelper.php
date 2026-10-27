@@ -14,6 +14,18 @@ final class RoleHelper
     /** @return Model&RoleContract */
     public static function findOrFail(mixed $role): Model
     {
+        $resolvedRole = self::find($role);
+
+        if (null === $resolvedRole) {
+            throw new RoleNotFound;
+        }
+
+        return $resolvedRole;
+    }
+
+    /** @return (Model&RoleContract)|null */
+    public static function find(mixed $role): ?Model
+    {
         if ($role instanceof RoleContract && $role instanceof Model) {
             return $role;
         }
@@ -23,15 +35,10 @@ final class RoleHelper
         }
 
         $roleClass = SentinelHelper::getRoleClass();
-        $resolvedRole = is_int($role)
+
+        return is_int($role)
             ? $roleClass::query()->find($role)
             : self::findStringRole($roleClass, $role);
-
-        if (null === $resolvedRole) {
-            throw new RoleNotFound;
-        }
-
-        return $resolvedRole;
     }
 
     /**
