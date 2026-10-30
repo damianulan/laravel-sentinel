@@ -121,6 +121,10 @@ final class SentinelServiceProvider extends ServiceProvider
     {
         $this->callAfterResolving(Gate::class, function (Gate $gate): void {
             $gate->before(function (Authorizable $user, string $ability, array $arguments = []): ?bool {
+                if (method_exists($user, 'isRoot') && $user->isRoot()) {
+                    return true;
+                }
+
                 if ( ! method_exists($user, 'hasPermissionTo')) {
                     return null;
                 }
