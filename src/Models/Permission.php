@@ -13,13 +13,23 @@ use Sentinel\Contracts\RoleContract;
 use Sentinel\Helpers\SentinelHelper;
 
 /**
- * @property int|string $id
- * @property string $slug
- * @property bool $assignable
+ * @property int $id
+ * @property string $slug Permission shortname key.
+ * @property bool $assignable Determines if permission is assignable throughout the platform.
+ * @property \Illuminate\Support\Carbon|null $created_at
+ * @property \Illuminate\Support\Carbon|null $updated_at
+ * @property-read \Illuminate\Database\Eloquent\Collection<int, \Sentinel\Models\Role> $roles
  * @property-read int|null $roles_count
  *
- * @method static Builder<static> whereAssignable()
- * @method static Builder<static> whereSlug(string ...$slugs)
+ * @method static Builder<static>|Permission newModelQuery()
+ * @method static Builder<static>|Permission newQuery()
+ * @method static Builder<static>|Permission query()
+ * @method static Builder<static>|Permission whereAssignable($value)
+ * @method static Builder<static>|Permission whereCreatedAt($value)
+ * @method static Builder<static>|Permission whereId($value)
+ * @method static Builder<static>|Permission whereSlug($value)
+ * @method static Builder<static>|Permission whereUpdatedAt($value)
+ * @mixin \Eloquent
  */
 class Permission extends Model implements PermissionContract
 {

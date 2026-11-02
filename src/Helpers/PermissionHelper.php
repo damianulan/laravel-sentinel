@@ -7,22 +7,9 @@ namespace Sentinel\Helpers;
 use BackedEnum;
 use Illuminate\Database\Eloquent\Model;
 use Sentinel\Contracts\PermissionContract;
-use Sentinel\Exceptions\PermissionNotFound;
 
 final class PermissionHelper
 {
-    /** @return Model&PermissionContract */
-    public static function findOrFail(mixed $permission): Model
-    {
-        $resolvedPermission = self::find($permission);
-
-        if (null === $resolvedPermission) {
-            throw new PermissionNotFound;
-        }
-
-        return $resolvedPermission;
-    }
-
     /** @return (Model&PermissionContract)|null */
     public static function find(mixed $permission): ?Model
     {

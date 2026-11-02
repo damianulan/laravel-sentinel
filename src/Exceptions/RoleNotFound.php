@@ -8,8 +8,8 @@ use RuntimeException;
 
 final class RoleNotFound extends RuntimeException
 {
-    public function __construct()
+    public function __construct(string $role)
     {
-        parent::__construct('The requested Sentinel role was not found.');
+        parent::__construct("The requested Sentinel role {$role} was not found.");
     }
 }

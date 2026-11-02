@@ -117,7 +117,7 @@ trait HasRolesAndPermissions
 
     public function hasRole(RoleContract|BackedEnum|string|int $role): bool
     {
-        $role = $this->findRoleForCheck($role);
+        $role = $this->findRole($role);
 
         if (null === $role) {
             return false;
@@ -216,7 +216,8 @@ trait HasRolesAndPermissions
     public function getAllPermissions(array $permissions): EloquentCollection
     {
         $resolved = collect(Arr::flatten($permissions))
-            ->map(fn (mixed $permission): PermissionContract => PermissionHelper::findOrFail($permission))
+            ->map(fn (mixed $permission) => $this->findPermission($permission))
+            ->filter()
             ->unique(fn (PermissionContract $permission): mixed => $permission->getKey())
             ->values()
             ->all();
@@ -275,7 +276,13 @@ trait HasRolesAndPermissions
         RoleContract|BackedEnum|string $role,
         ?Model $context = null,
     ): static {
-        $this->assignRoleModel(RoleHelper::findOrFail($role), $context);
+        $role = $this->findRole($role);
+
+        if (null === $role) {
+            return $this;
+        }
+
+        $this->assignRoleModel($role, $context);
 
         return $this;
     }
@@ -284,7 +291,13 @@ trait HasRolesAndPermissions
         RoleContract|int $role,
         ?Model $context = null,
     ): static {
-        $this->assignRoleModel(RoleHelper::findOrFail($role), $context);
+        $role = $this->findRole($role);
+
+        if (null === $role) {
+            return $this;
+        }
+
+        $this->assignRoleModel($role, $context);
 
         return $this;
     }
@@ -301,7 +314,13 @@ trait HasRolesAndPermissions
         RoleContract|BackedEnum|string $role,
         ?Model $context = null,
     ): static {
-        $this->revokeRoleModel(RoleHelper::findOrFail($role), $context);
+        $role = $this->findRole($role);
+
+        if (null === $role) {
+            return $this;
+        }
+
+        $this->revokeRoleModel($role, $context);
 
         return $this;
     }
@@ -310,7 +329,13 @@ trait HasRolesAndPermissions
         RoleContract|int $role,
         ?Model $context = null,
     ): static {
-        $this->revokeRoleModel(RoleHelper::findOrFail($role), $context);
+        $role = $this->findRole($role);
+
+        if (null === $role) {
+            return $this;
+        }
+
+        $this->revokeRoleModel($role, $context);
 
         return $this;
     }
@@ -346,11 +371,19 @@ trait HasRolesAndPermissions
         sort($currentRoleIds);
 
         foreach (array_diff($currentRoleIds, $assignableRoleIds) as $roleId) {
-            $this->revokeRoleModel(RoleHelper::findOrFail($roleId), invalidate: false);
+            $role = $this->findRole($roleId);
+
+            if (null !== $role) {
+                $this->revokeRoleModel($role, invalidate: false);
+            }
         }
 
         foreach (array_diff($assignableRoleIds, $currentRoleIds) as $roleId) {
-            $this->assignRoleModel(RoleHelper::findOrFail($roleId), invalidate: false);
+            $role = $this->findRole($roleId);
+
+            if (null !== $role) {
+                $this->assignRoleModel($role, invalidate: false);
+            }
         }
 
         if ($currentRoleIds !== $assignableRoleIds) {
@@ -411,7 +444,8 @@ trait HasRolesAndPermissions
     private function roleIds(array $roles): array
     {
         return collect(Arr::flatten($roles))
-            ->map(fn (mixed $role): RoleContract => RoleHelper::findOrFail($role))
+            ->map(fn (mixed $role) => $this->findRole($role))
+            ->filter()
             ->map(fn (RoleContract $role): mixed => $role->getKey())
             ->unique()
             ->values()
@@ -427,7 +461,7 @@ trait HasRolesAndPermissions
         $roleIds = [];
 
         foreach (Arr::flatten($roles) as $role) {
-            $resolvedRole = $this->findRoleForCheck($role);
+            $resolvedRole = $this->findRole($role);
 
             if (null === $resolvedRole) {
                 return null;
@@ -519,7 +553,7 @@ trait HasRolesAndPermissions
         $identity = $this->permissionIdentity($permission);
 
         if ( ! str_ends_with($identity, '*')) {
-            $permission = $this->findPermissionForCheck($permission);
+            $permission = $this->findPermission($permission);
 
             if (null === $permission) {
                 return [];
@@ -543,13 +577,13 @@ trait HasRolesAndPermissions
     }
 
     /** @return (Model&RoleContract)|null */
-    private function findRoleForCheck(RoleContract|BackedEnum|string|int $role): ?Model
+    private function findRole(mixed $role): ?Model
     {
         $resolvedRole = RoleHelper::find($role);
 
         if (null === $resolvedRole) {
-            Log::warning('Sentinel role [{role}] was checked but does not exist.', [
-                'role' => $this->checkedIdentifier($role),
+            Log::warning('Sentinel role [{role}] does not exist.', [
+                'role' => $this->authorizationIdentifier($role),
             ]);
         }
 
@@ -557,9 +591,8 @@ trait HasRolesAndPermissions
     }
 
     /** @return (Model&PermissionContract)|null */
-    private function findPermissionForCheck(
-        PermissionContract|BackedEnum|string|int $permission,
-    ): ?Model {
+    private function findPermission(mixed $permission): ?Model
+    {
         $resolvedPermission = PermissionHelper::find($permission);
 
         if (null === $resolvedPermission) {
@@ -570,16 +603,15 @@ trait HasRolesAndPermissions
     }
 
     private function warnAboutMissingPermission(
-        PermissionContract|BackedEnum|string|int $permission,
+        mixed $permission,
     ): void {
-        Log::warning('Sentinel permission [{permission}] was checked but does not exist.', [
-            'permission' => $this->checkedIdentifier($permission),
+        Log::warning('Sentinel permission [{permission}] does not exist.', [
+            'permission' => $this->authorizationIdentifier($permission),
         ]);
     }
 
-    private function checkedIdentifier(
-        RoleContract|PermissionContract|BackedEnum|string|int $authorization,
-    ): string|int {
+    private function authorizationIdentifier(mixed $authorization): string|int
+    {
         if ($authorization instanceof BackedEnum) {
             return $authorization->value;
         }
@@ -590,9 +622,11 @@ trait HasRolesAndPermissions
             return is_int($key) || is_string($key) ? $key : $authorization::class;
         }
 
-        return is_int($authorization) || is_string($authorization)
-            ? $authorization
-            : $authorization::class;
+        if (is_int($authorization) || is_string($authorization)) {
+            return $authorization;
+        }
+
+        return get_debug_type($authorization);
     }
 
     /** @return array<int, string> */

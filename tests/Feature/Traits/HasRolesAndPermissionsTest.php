@@ -135,7 +135,7 @@ it('logs a warning and returns false when checked roles do not exist', function 
 
     Log::expects('warning')
         ->times(3)
-        ->with('Sentinel role [{role}] was checked but does not exist.', [
+        ->with('Sentinel role [{role}] does not exist.', [
             'role' => 'missing-role',
         ]);
 
@@ -152,7 +152,7 @@ it('logs a warning and returns false when checked permissions do not exist', fun
 
     Log::expects('warning')
         ->times(4)
-        ->with('Sentinel permission [{permission}] was checked but does not exist.', [
+        ->with('Sentinel permission [{permission}] does not exist.', [
             'permission' => 'missing.permission',
         ]);
 
@@ -160,4 +160,33 @@ it('logs a warning and returns false when checked permissions do not exist', fun
         ->and($user->hasPermissionTo('missing.permission'))->toBeFalse()
         ->and($user->hasPermissionThroughRole('missing.permission'))->toBeFalse()
         ->and($rootUser->hasPermissionTo('missing.permission'))->toBeFalse();
+});
+
+it('logs a warning and continues when mutating a role that does not exist', function (): void {
+    $user = SentinelUser::query()->create();
+
+    Log::expects('warning')
+        ->times(2)
+        ->with('Sentinel role [{role}] does not exist.', [
+            'role' => 'missing-role',
+        ]);
+
+    expect($user->assignRole('missing-role'))->toBe($user);
+    expect($user->revokeRole('missing-role'))->toBe($user);
+    expect($user->roleAssignments()->count())->toBe(0);
+});
+
+it('logs a warning and continues when mutating a permission that does not exist', function (): void {
+    $user = SentinelUser::query()->create();
+
+    Log::expects('warning')
+        ->times(3)
+        ->with('Sentinel permission [{permission}] does not exist.', [
+            'permission' => 'missing.permission',
+        ]);
+
+    expect($user->givePermissionsTo('missing.permission'))->toBe($user);
+    expect($user->deletePermissions('missing.permission'))->toBe($user);
+    expect($user->refreshPermissions('missing.permission'))->toBe($user);
+    expect($user->permissions()->count())->toBe(0);
 });
