@@ -5,8 +5,10 @@ declare(strict_types=1);
 namespace Sentinel\Models;
 
 use Illuminate\Database\Eloquent\Builder;
+use Illuminate\Database\Eloquent\Collection;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsToMany;
+use Illuminate\Support\Carbon;
 use Illuminate\Support\Facades\Lang;
 use Sentinel\Contracts\PermissionContract;
 use Sentinel\Contracts\RoleContract;
@@ -16,9 +18,9 @@ use Sentinel\Helpers\SentinelHelper;
  * @property int $id
  * @property string $slug Permission shortname key.
  * @property bool $assignable Determines if permission is assignable throughout the platform.
- * @property \Illuminate\Support\Carbon|null $created_at
- * @property \Illuminate\Support\Carbon|null $updated_at
- * @property-read \Illuminate\Database\Eloquent\Collection<int, \Sentinel\Models\Role> $roles
+ * @property Carbon|null $created_at
+ * @property Carbon|null $updated_at
+ * @property-read Collection<int, Role> $roles
  * @property-read int|null $roles_count
  *
  * @method static Builder<static>|Permission newModelQuery()
@@ -29,6 +31,7 @@ use Sentinel\Helpers\SentinelHelper;
  * @method static Builder<static>|Permission whereId($value)
  * @method static Builder<static>|Permission whereSlug($value)
  * @method static Builder<static>|Permission whereUpdatedAt($value)
+ *
  * @mixin \Eloquent
  */
 class Permission extends Model implements PermissionContract
