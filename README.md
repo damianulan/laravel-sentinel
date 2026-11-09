@@ -1,100 +1,28 @@
 # Laravel Sentinel
 
-[![Laravel](https://img.shields.io/badge/made_with-Laravel-red?style=for-the-badge)](https://laravel.com) [![License](https://img.shields.io/badge/license-MIT-blue?style=for-the-badge)](LICENSE)
+Laravel Sentinel provides database-backed roles and permissions for Laravel, including permissions scoped to an Eloquent model context.
 
-Laravel Sentinel is a context-aware roles and permissions package for Laravel.
-
-Its core idea is simple:
-
-- roles can be assigned globally or within a specific context
-- permissions can be assigned directly to a user
-- permissions can also be inherited through roles
-- permission checks can optionally receive an Eloquent model instance as context
-
-This makes it useful for applications where a user may have one role in one model context and a different role elsewhere, for example per-project, per-campaign, or per-team access control.
-
-## Requirements
-
-- PHP `^8.3`
-- `illuminate/support` `^9.0|^10.0|^11.0|^12.0`
+The current `main` branch supports PHP 8.3 or newer and Laravel 11, 12, and 13. This README documents the current development branch, whose registry-based API differs substantially from version `1.0.6`.
 
 ## Installation
 
-Install the package:
+Install the package, publish its migrations, and migrate the database:
 
 ```bash
-composer require damianulan/laravel-sentinel
-```
-
-Publish the package assets:
-
-```bash
-php artisan vendor:publish --tag=sentinel
-```
-
-Available publish tags:
-
-```bash
-php artisan vendor:publish --tag=sentinel-config
+composer require damianulan/laravel-sentinel:dev-main
 php artisan vendor:publish --tag=sentinel-migrations
-php artisan vendor:publish --tag=sentinel-langs
-```
-
-Run the published migrations:
-
-```bash
 php artisan migrate
 ```
 
-Generate the two application warden classes used to define your platform's roles and permissions:
+Publish the configuration only when the defaults need to be changed:
 
 ```bash
-php artisan make:roles
-php artisan make:permissions
+php artisan vendor:publish --tag=sentinel-config
 ```
 
-Then synchronize those definitions into the database:
-
-```bash
-php artisan sentinel:run
-```
-
-Run `sentinel:run` every time you add, remove, or change role and permission definitions.
-
-## How Sentinel Works
-
-Sentinel has four main layers:
-
-1. Warden classes in `App\Warden` define your canonical roles and permissions as constants and configuration arrays.
-2. `sentinel:run` reads those classes and seeds the `roles`, `permissions`, and `roles_permissions` tables.
-3. Your authenticatable model uses `Sentinel\Traits\HasRolesAndPermissions`.
-4. Runtime checks use direct permissions, inherited role permissions, and optional model context.
-
-## Database Structure
-
-Published migrations create these tables:
-
-- `roles`
-- `permissions`
-- `roles_permissions`
-- `has_roles`
-- `has_permissions`
-
-Important pivots:
-
-- `has_permissions` stores direct permission assignments per morphable model
-- `has_roles` stores role assignments per morphable model and per morphable context
-
-That means a user can have the same role multiple times, each attached to a different context.
-
-## Setup
-
-### 1. Add the trait to your user model
+Add `HasRolesAndPermissions` to each Eloquent model that receives roles or direct permissions:
 
 ```php
-
-namespace App\Models\Core;
-
 use Illuminate\Foundation\Auth\User as Authenticatable;
 use Sentinel\Traits\HasRolesAndPermissions;
 
@@ -104,366 +32,375 @@ class User extends Authenticatable
 }
 ```
 
-### 2. Define roles in `App\Warden`
+## Define roles and permissions
 
-Generated roles classes extend `Sentinel\Config\Warden\RoleWarden`.
+Sentinel discovers role and permission registries from Composer's optimized project classmap. An application or module may define multiple registries, but at least one implementation of each contract is required:
 
-Example:
+- `Sentinel\Contracts\RoleRegistryContract`
+- `Sentinel\Contracts\PermissionRegistryContract`
+
+Registries may be normal classes or backed enums. Slugs cannot contain whitespace.
+
+### Permission registry
+
+`permissions()` returns permission slugs keyed by their assignable state. The flag controls whether a permission appears in administrative select lists; it is not an authorization decision by itself.
 
 ```php
+namespace App\Authorization;
 
-namespace App\Warden;
+use Sentinel\Contracts\PermissionRegistryContract;
 
-use Sentinel\Config\Warden\RoleWarden;
-
-final class RolesLib extends RoleWarden
+enum PermissionRegistry: string implements PermissionRegistryContract
 {
-    public const ROOT = 'root';
-    public const ADMIN = 'admin';
-    public const PROJECT_MANAGER = 'project-manager';
-    public const MEMBER = 'member';
+    case ViewUsers = 'users.view';
+    case UpdateUsers = 'users.update';
+    case DeleteUsers = 'users.delete';
 
-    public static function assignable(): array
+    public static function permissions(): array
     {
         return [
-            self::ADMIN,
-            self::PROJECT_MANAGER,
-            self::MEMBER,
-        ];
-    }
-
-    public static function admins(): array
-    {
-        return [
-            self::ROOT,
-            self::ADMIN,
-        ];
-    }
-
-    public static function labels(): array
-    {
-        return [
-            self::ROOT => 'Root',
-            self::ADMIN => 'Administrator',
-            self::PROJECT_MANAGER => 'Project manager',
-            self::MEMBER => 'Member',
+            self::ViewUsers->value => true,
+            self::UpdateUsers->value => true,
+            self::DeleteUsers->value => false,
         ];
     }
 }
 ```
 
-Key methods:
+### Role registry
 
-- `values()`: all declared constants plus optional extra items
-- `assignable()`: roles allowed for platform assignment flows
-- `admins()`: roles treated as admin roles by `isAdmin()`
-- `labels()`: optional slug-to-label mapping
-
-### 3. Define permissions in `App\Warden`
-
-Generated permissions classes extend `Sentinel\Config\Warden\PermissionWarden`.
-
-Example:
+`roles()` defines roles and their assignable state. `rolePermissions()` maps role slugs to permission slugs, while `adminRoles()` defines the roles recognized by `isAdmin()`.
 
 ```php
+namespace App\Authorization;
 
-namespace App\Warden;
+use Sentinel\Contracts\RoleRegistryContract;
 
-use Sentinel\Config\Warden\PermissionWarden;
-
-final class PermissionsLib extends PermissionWarden
+enum RoleRegistry: string implements RoleRegistryContract
 {
-    public const PROJECT_VIEW = 'project-view';
-    public const PROJECT_UPDATE = 'project-update';
-    public const PROJECT_DELETE = 'project-delete';
-    public const USER_MANAGE = 'user-manage';
+    case Root = 'root';
+    case Administrator = 'administrator';
+    case User = 'user';
 
-    public static function assignable(): array
+    public static function roles(): array
     {
         return [
-            self::PROJECT_VIEW => ['*'],
-            self::PROJECT_UPDATE => [RolesLib::PROJECT_MANAGER, RolesLib::ADMIN],
-            self::PROJECT_DELETE => ['admins'],
+            self::Root->value => false,
+            self::Administrator->value => true,
+            self::User->value => true,
         ];
     }
 
-    public static function nonassignable(): array
+    public static function rolePermissions(): array
     {
         return [
-            self::USER_MANAGE => ['admins'],
+            self::Administrator->value => ['*'],
+            self::User->value => [
+                PermissionRegistry::ViewUsers->value,
+            ],
         ];
     }
 
-    public static function labels(): array
+    public static function adminRoles(): array
     {
         return [
-            self::PROJECT_VIEW => 'View projects',
-            self::PROJECT_UPDATE => 'Update projects',
-            self::PROJECT_DELETE => 'Delete projects',
-            self::USER_MANAGE => 'Manage users',
+            self::Root->value,
+            self::Administrator->value,
         ];
     }
 }
 ```
 
-Meaning of the assignment arrays:
+The `*` role mapping grants every registered permission. A registry may contribute permissions to a role declared by another registry, allowing modules to extend application-wide roles without redefining them.
 
-- `['*']`: attach permission to every role
-- `['admins']`: attach permission to every role returned by `RolesLib::admins()`
-- `[RolesLib::ADMIN, RolesLib::MEMBER]`: attach permission only to those explicit roles
+Identical definitions from several registries are merged. Synchronization fails when registries disagree about an assignable state or reference an unknown role or permission.
 
-Important distinction:
+## Synchronize the database
 
-- `assignable()` creates permissions marked as assignable in the database
-- `nonassignable()` creates permissions that still exist and can still be checked, but are not meant for regular UI assignment flows
-
-### 4. Seed the definitions
-
-Once your warden classes exist:
+Refresh Composer's optimized classmap after adding, moving, or renaming a registry, then synchronize Sentinel:
 
 ```bash
+composer dump-autoload --optimize
 php artisan sentinel:run
 ```
 
-What `sentinel:run` does:
+The command runs in a database transaction and:
 
-- loads the role and permission wardens from `App\Warden`
-- creates missing `roles`
-- creates missing `permissions`
-- attaches permissions to roles
-- deletes outdated roles and permissions that no longer exist in the warden classes
-- flushes Sentinel's internal cache
+- discovers and validates all project registries;
+- inserts or updates roles, permissions, and assignable states;
+- synchronizes every role-permission pivot;
+- removes database roles and permissions absent from the registries;
+- invalidates all cached permission results after a successful commit;
+- returns a failing exit code when discovery, validation, or synchronization fails.
 
-## Runtime API
+> **Warning:** `sentinel:run` is authoritative. It deletes roles and permissions that are not declared by a discovered registry.
 
-The main runtime API lives on the model using `HasRolesAndPermissions`.
+## Role API
 
-### Role relationships and assignment
-
-Roles are assigned either:
-
-- globally through the default context
-- specifically to an Eloquent model instance used as the context
-
-Example context model:
+Assign roles by slug, backed enum, or role model. Omit the context to use Sentinel's default system context:
 
 ```php
-use App\Models\Project;
-use App\Warden\RolesLib;
-
-$user->assignRoleSlug(RolesLib::PROJECT_MANAGER, $project);
-$user->assignRoleSlug(RolesLib::ADMIN); // assigned in default context
-```
-
-You can also assign by role ID or role model:
-
-```php
-$user->assignRole($roleId, $project);
+$user->assignRole(RoleRegistry::User);
+$user->assignRole('administrator');
 $user->assignRole($roleModel, $project);
+
+$user->revokeRole(RoleRegistry::User);
+$user->revokeRole($roleModel, $project);
 ```
 
-Revoke role assignments:
+Numeric primary keys use explicit methods:
 
 ```php
-$user->revokeRoleSlug(RolesLib::PROJECT_MANAGER, $project);
-$user->revokeRole($roleId, $project);
+$user->assignRoleId($roleId);
+$user->assignRoleId($roleId, $project);
+
+$user->revokeRoleId($roleId);
+$user->revokeRoleId($roleId, $project);
 ```
 
-Inspect roles:
+`assignRoleSlug()` and `revokeRoleSlug()` are deprecated aliases. Use `assignRole()` and `revokeRole()` instead.
+
+Check roles by slug, backed enum, model, or numeric primary key:
 
 ```php
-$user->roles();           // all assigned roles relation
-$user->roles($project);   // roles in project context + default system context
-$user->roleAssignments(); // raw DB query for has_roles pivot rows
+$user->hasRole(RoleRegistry::User);
+$user->hasRole($roleId);
 
-$user->getRoles();        // collection of role slugs
-$user->getRolesNames();   // translated or labeled role names
+$user->hasAllRoles([
+    RoleRegistry::User,
+    RoleRegistry::Administrator,
+]);
 
-$user->hasRole(RolesLib::ADMIN);
-$user->hasRoles([RolesLib::ADMIN, RolesLib::MEMBER]);
-$user->hasAnyRoles([RolesLib::ADMIN, RolesLib::PROJECT_MANAGER]);
+$user->hasRoles([
+    RoleRegistry::User,
+    RoleRegistry::Administrator,
+]);
+
+$user->hasAnyRoles([
+    RoleRegistry::Administrator,
+    RoleRegistry::Root,
+]);
 ```
 
-### Direct permissions
+`hasRoles()` and `hasAllRoles()` require every role. `hasAnyRoles()` requires at least one. These methods search assignments from every context; use permission checks when access depends on a specific context.
 
-Direct permissions are stored separately from role-based permissions.
+Missing roles are logged as warnings. Checks return `false`, while assignment and revocation methods make no change.
+
+### Synchronize assignable roles
 
 ```php
-use App\Warden\PermissionsLib;
-
-$user->givePermissionsTo(
-    PermissionsLib::PROJECT_VIEW,
-);
-
-$user->deletePermissions(
-    PermissionsLib::PROJECT_VIEW,
-);
-
-$user->refreshPermissions(
-    PermissionsLib::PROJECT_VIEW,
-    PermissionsLib::PROJECT_UPDATE,
-);
+$user->refreshRole([
+    RoleRegistry::User,
+    RoleRegistry::Administrator,
+]);
 ```
 
-Inspect direct permission assignments:
+`refreshRole()` synchronizes only roles marked assignable in the default system context. It preserves non-assignable and context-specific assignments.
 
-```php
-$user->permissions();
-$user->hasPermission(Permission::findBySlug(PermissionsLib::PROJECT_VIEW));
-```
-
-`hasPermission()` only checks direct permission assignments. It does not resolve inherited permissions or context.
-
-### Permission checks
-
-Use `hasPermissionTo()` for the normal application-facing check.
-
-It supports:
-
-- direct permissions
-- permissions inherited through roles
-- optional model context
-- wildcard-style prefix matching using `permission-*`
-- automatic root bypass
-
-Examples:
-
-```php
-use App\Warden\PermissionsLib;
-
-$user->hasPermissionTo(PermissionsLib::PROJECT_VIEW);
-$user->hasPermissionTo(PermissionsLib::PROJECT_UPDATE, $project);
-$user->hasPermissionTo('project-*', $project);
-```
-
-Behavior notes:
-
-- If the user has the configured root role, `hasPermissionTo()` always returns `true`
-- If a context is provided, Sentinel checks roles attached to that specific context and also roles attached to the default system context
-- If no context is provided, Sentinel checks direct permissions and global role-derived permissions
-
-### Admin and root helpers
+### Administrative roles
 
 ```php
 $user->isAdmin();
 $user->isRoot();
 ```
 
-- `isAdmin()` checks any role returned by your `RoleWarden::admins()` definition
-- `isRoot()` checks the slug configured at `sentinel.root`
+`isAdmin()` checks all roles declared by `adminRoles()` and also returns `true` for a root user. `isRoot()` checks the slug configured by `sentinel.root`.
 
-### Query scopes
+## Direct permissions
 
-The trait also adds scopes:
-
-```php
-User::query()->withRole(RolesLib::ADMIN)->get();
-User::query()->withPermission(PermissionsLib::PROJECT_UPDATE)->get();
-```
-
-`withPermission()` matches both direct permissions and permissions inherited through roles.
-
-## Contexts
-
-Sentinel's distinguishing feature is context-aware role assignment.
-
-The default context class is configured in `config/sentinel.php`:
+Direct permission mutation methods accept slugs, backed enums, permission models, numeric primary keys, and nested arrays. `hasPermission()` accepts one slug, enum, model, or primary key:
 
 ```php
-'default_context' => Sentinel\Contexts\System::class,
+$user->givePermissionsTo(
+    PermissionRegistry::ViewUsers,
+    PermissionRegistry::UpdateUsers,
+);
+
+$user->hasPermission(PermissionRegistry::ViewUsers);
+
+$user->deletePermissions(PermissionRegistry::UpdateUsers);
+
+$user->refreshPermissions([
+    PermissionRegistry::ViewUsers,
+]);
 ```
 
-The built-in `System` context implements `Sentinel\Contracts\DefaultContext` and returns key `0`.
+`hasPermission()` checks direct assignments only. These mutation methods invalidate the subject's cached authorization results; prefer them over changing the `permissions()` relationship directly.
 
-This means a role assigned without an explicit model context becomes a system-wide role:
+Missing permissions are logged as warnings. Checks return `false`, and mutation methods ignore definitions they cannot resolve.
+
+## Context-aware authorization
+
+Use `hasPermissionTo()` to include role permissions and optionally scope the check to an Eloquent model:
 
 ```php
-$user->assignRoleSlug(RolesLib::ADMIN);
+$user->hasPermissionTo(PermissionRegistry::ViewUsers);
+$user->hasPermissionTo(PermissionRegistry::UpdateUsers, $project);
 ```
 
-To check permissions in a specific context:
+Authorization behaves as follows:
+
+| Check | Roles considered | Direct permissions |
+| --- | --- | --- |
+| `hasPermissionTo($permission)` | Roles from every context | Included |
+| `hasPermissionTo($permission, $context)` | Roles assigned to that context plus default-system roles | Excluded |
+| `hasPermissionThroughRole($permission, $context)` | Same context behavior as above | Excluded |
+
+A root user passes every `hasPermissionTo()` check. Context models must be persisted; Sentinel stores their Eloquent morph class and primary key and throws a runtime exception for an unsaved context.
+
+### Hierarchical wildcards
+
+Wildcard permissions work in both directions:
+
+- assigning `users.*` to a role or user grants descendant checks such as `users.view` and `users.profile.update`;
+- checking `users.*` succeeds when the subject has any registered permission beginning with `users.`.
 
 ```php
-$user->hasPermissionTo(PermissionsLib::PROJECT_UPDATE, $project);
+$user->hasPermissionTo('users.view');
+$user->hasPermissionTo('users.*');
 ```
 
-You can replace the default context class in config as long as it implements `Sentinel\Contracts\DefaultContext`.
+Wildcard checks use the permission registry to expand the requested prefix. A wildcard database record is only needed when the wildcard itself should grant descendant permissions.
 
-## Gate Integration
+## Laravel Gate integration
 
-Sentinel registers a `Gate::before()` callback in its service provider.
-
-That means standard Laravel authorization checks can automatically resolve through `hasPermissionTo()` when the authenticated user exposes that method.
-
-Examples:
+Sentinel registers a `Gate::before()` hook:
 
 ```php
-auth()->user()->can('project-update', $project);
-auth()->user()->cannot('project-delete', $project);
+use Illuminate\Support\Facades\Gate;
+
+$user->can(PermissionRegistry::UpdateUsers->value, $project);
+Gate::allows(PermissionRegistry::ViewUsers->value);
 ```
 
-The first Eloquent model found in the gate arguments is treated as the Sentinel context.
+For non-root users, Sentinel handles only exact abilities declared by a permission registry. Other abilities continue through normal Laravel gates and policies. Root users retain a global Gate bypass, including for abilities not registered with Sentinel.
 
-This makes Sentinel compatible with many normal Laravel authorization flows without writing a separate policy for every permission slug.
+Prefer Laravel authorization calls in policies, controllers, and middleware when the permission represents application access.
 
-## Blade Directives
+## Middleware
 
-Sentinel registers three Blade conditionals:
+The service provider registers `sentinel.permission` and `sentinel.role` aliases:
+
+```php
+use Illuminate\Support\Facades\Route;
+
+Route::get('/users', UsersController::class)
+    ->middleware('sentinel.permission:users.view');
+
+Route::put('/projects/{project}', UpdateProjectController::class)
+    ->middleware('sentinel.permission:projects.update,project');
+
+Route::get('/administration', AdministrationController::class)
+    ->middleware('sentinel.role:administrator');
+```
+
+The optional second permission argument names a route parameter. Use implicit model binding so the middleware receives a persisted Eloquent context model. Failed checks return HTTP 403.
+
+## Blade conditions
 
 ```blade
-@role('admin')
-    <p>Visible to admins.</p>
+@role('administrator')
+    ...
 @endrole
 
 @admin
-    <p>Visible to admin-class roles.</p>
+    ...
 @endadmin
 
 @root
-    <p>Visible only to the configured root role.</p>
+    ...
 @endroot
 ```
 
-## Models
+These conditions safely return `false` for unauthenticated users. Blade visibility is not authorization; protect the corresponding route or action on the server.
 
-### `Sentinel\Models\Role`
+## Relationships and query scopes
 
-Useful methods:
+The trait exposes `roles()`, `permissions()`, and `roleAssignments()`. Passing a context to `roles()` returns assignments from that context plus the default system context; calling it without a context returns assignments from every context.
+
+Use the public query scopes to find authorizable models:
 
 ```php
-use Sentinel\Models\Role;
+User::query()
+    ->withRole(RoleRegistry::Administrator)
+    ->get();
 
-$role = Role::findBySlug('admin');
-$id = Role::getId('admin');
-$assignable = Role::whereAssignable()->get();
-$select = Role::getSelectList();
+User::query()
+    ->withPermission(PermissionRegistry::ViewUsers)
+    ->get();
 ```
 
-Relationships:
+`withPermission()` includes direct permissions and permissions inherited through roles. Query scopes accept slugs, backed enums, models, primary keys, nested arrays, and multiple arguments.
 
-- `permissions()`
+## Labels and select lists
 
-### `Sentinel\Models\Permission`
+`getRoles()` returns the subject's unique role slugs. `getRolesNames()` translates each slug using `gates.roles.<slug>` and falls back to the slug.
 
-Useful methods:
+The built-in role and permission models expose assignable records as ordered select lists:
 
 ```php
 use Sentinel\Models\Permission;
+use Sentinel\Models\Role;
 
-$permission = Permission::findBySlug('project-update');
-$assignable = Permission::whereAssignable()->get();
-$select = Permission::getSelectList();
+$roles = Role::getSelectList();
+$permissions = Permission::getSelectList();
 ```
 
-Relationships:
+Labels use `gates.roles.<slug>` and `gates.permissions.<slug>` translation keys, falling back to their slugs.
 
-- `roles()`
+## Caching
+
+Sentinel caches permission results using:
+
+- the authorizable model's morph type and primary key;
+- the permission or wildcard expression;
+- the optional context's morph type and primary key;
+- a per-subject authorization version;
+- a global authorization version.
+
+Result identities are SHA-256 hashes, preventing collisions between morph classes, IDs, permission slugs, and contexts. Mutations through `HasRolesAndPermissions` rotate the affected subject's version. `sentinel:run` rotates the global version after its transaction commits. Old result entries become unreachable and expire normally.
+
+```php
+// config/sentinel.php
+'cache' => [
+    'enabled' => true,
+    'driver' => 'default',
+    'key' => 'sentinel.cache',
+    'expire_after' => 86400,
+],
+```
+
+- Set `enabled` to `false` or `expire_after` to `0` to bypass result caching.
+- `driver` set to `default` uses the application's default cache store.
+- Use a shared cache store when authorization changes and checks run on different application instances.
+- Unsaved authorizable and context models are never cached.
+- When pivot rows are changed outside Sentinel's mutation methods, invalidate the affected subject explicitly.
+
+```php
+use Sentinel\Cache\PermissionCache;
+
+$cache = app(PermissionCache::class);
+
+$cache->invalidate($user);
+$cache->invalidateAll();
+```
+
+## Registry facade
+
+The facade provides access to the discovered registry manifest. It is not installed as a global alias, so import it explicitly:
+
+```php
+use Sentinel\Facades\Sentinel;
+
+$roles = Sentinel::roles();
+$permissions = Sentinel::permissions();
+$rolePermissions = Sentinel::rolePermissions();
+$adminRoles = Sentinel::adminRoles();
+```
+
+The underlying service is `Sentinel\Registry\RegistryRepository` and may also be resolved from the container.
 
 ## Configuration
-
-Published config file: `config/sentinel.php`
-
-Main options:
 
 ```php
 return [
@@ -477,6 +414,7 @@ return [
     'root' => 'root',
 
     'cache' => [
+        'enabled' => true,
         'driver' => 'default',
         'key' => 'sentinel.cache',
         'expire_after' => 86400,
@@ -484,138 +422,46 @@ return [
 ];
 ```
 
-What these options control:
+A custom default context must implement `Sentinel\Contracts\DefaultContext`. Custom role and permission classes must extend Eloquent `Model` and implement `RoleContract` or `PermissionContract`. Sentinel validates configured model classes before using them.
 
-- `default_context`: global role context used when no model context is provided
-- `models.role` / `models.permission`: override the Eloquent models used by Sentinel
-- `root`: the role slug that bypasses all permission checks
-- `cache.*`: cache used to store discovered Warden namespaces
+## Testing helper
 
-## Cache Behavior
-
-Sentinel caches the detected warden classes:
-
-- `rolesLib`
-- `permissionsLib`
-
-These values are flushed automatically when `sentinel:run` completes.
-
-If you move or rename your `App\Warden` classes and want to clear cache manually, rerun:
-
-```bash
-php artisan sentinel:run
-```
-
-## Middleware
-
-The package includes middleware classes:
-
-- `Sentinel\Http\Middleware\RoleMiddleware`
-- `Sentinel\Http\Middleware\PermissionMiddleware`
-
-Behavior:
-
-- `RoleMiddleware` checks `Auth::user()->hasRole($role)`
-- `PermissionMiddleware` checks `Auth::user()->cannot($permission, $context)`
-
-Example registration in Laravel 11+:
-
-```php
-use Sentinel\Http\Middleware\PermissionMiddleware;
-use Sentinel\Http\Middleware\RoleMiddleware;
-
-->withMiddleware(function ($middleware): void {
-    $middleware->alias([
-        'role' => RoleMiddleware::class,
-        'permission' => PermissionMiddleware::class,
-    ]);
-})
-```
-
-Example usage:
-
-```php
-Route::middleware('role:admin')->group(function () {
-    // ...
-});
-
-Route::middleware('permission:project-update')->group(function () {
-    // ...
-});
-```
-
-If you need context-aware permission middleware, pass the appropriate argument pattern for your application or prefer standard Laravel gate checks inside controllers/services where the actual model instance is available.
-
-## Testing Helper
-
-The package includes a small testing concern:
+`Sentinel\Testing\Concerns\InteractsWithRoles` adds a role assertion to a test case:
 
 ```php
 use Sentinel\Testing\Concerns\InteractsWithRoles;
+use Tests\TestCase;
 
-uses(InteractsWithRoles::class);
+class UserRoleTest extends TestCase
+{
+    use InteractsWithRoles;
 
-it('assigns the admin role', function () use ($user) {
-    $this->assertHasRole('admin', $user);
-});
+    public function test_it_assigns_the_administrator_role(): void
+    {
+        $user = User::factory()->create();
+        $user->assignRole('administrator');
+
+        $this->assertHasRole('administrator', $user);
+    }
+}
 ```
 
-## Typical Example
+Use an isolated cache store such as Laravel's array store in tests that exercise permission caching.
 
-A user can be a global admin and also a project-scoped manager:
+## Upgrading from `1.0.6`
 
-```php
-use App\Models\Project;
-use App\Warden\PermissionsLib;
-use App\Warden\RolesLib;
+The current branch replaces the Warden-based API:
 
-$project = Project::findOrFail(1);
+1. Replace the role and permission Warden classes with registries implementing `RoleRegistryContract` and `PermissionRegistryContract`.
+2. Move role-permission mappings into `RoleRegistryContract::rolePermissions()` and administrative roles into `adminRoles()`.
+3. Run `composer dump-autoload --optimize`, then `php artisan sentinel:run`.
+4. Replace numeric calls to `assignRole()` and `revokeRole()` with `assignRoleId()` and `revokeRoleId()`.
+5. Merge the new `cache.enabled` option into a published Sentinel configuration.
+6. Review custom models against the reduced role and permission contracts.
+7. Review already-published migrations separately; package migration fixes do not modify application migrations.
 
-$user->assignRoleSlug(RolesLib::ADMIN);
-$user->assignRoleSlug(RolesLib::PROJECT_MANAGER, $project);
-
-$user->hasPermissionTo(PermissionsLib::PROJECT_DELETE); // true if granted through admin role
-$user->hasPermissionTo(PermissionsLib::PROJECT_UPDATE, $project); // true
-```
-
-Another project will not automatically inherit the project-scoped role:
-
-```php
-$otherProject = Project::findOrFail(2);
-
-$user->hasPermissionTo(PermissionsLib::PROJECT_UPDATE, $otherProject); // false unless another role grants it
-```
-
-## Warden Discovery Rules
-
-Sentinel looks for role and permission wardens under `App\Warden` by scanning Composer's autoload classmap and finding concrete subclasses of:
-
-- `Sentinel\Config\Warden\RoleWarden`
-- `Sentinel\Config\Warden\PermissionWarden`
-
-If Sentinel cannot find one of these classes, it throws:
-
-- `Role Warden class is not declared in the project!`
-- `Permission Warden class is not declared in the project!`
-
-If class discovery seems stale after adding or renaming warden classes, refresh Composer autoload metadata:
-
-```bash
-composer dump-autoload
-php artisan sentinel:run
-```
-
-## Caveats
-
-- Context applies to roles, not to direct permissions
-- `hasPermission()` checks only direct permissions; use `hasPermissionTo()` for normal authorization decisions
-- `sentinel:run` removes database roles and permissions that are no longer present in your warden definitions
-- Middleware can only be context-aware when the relevant model instance is actually available to the middleware
+The old `SentinelManager`, Warden base classes, Warden exceptions, generator commands, and generator stubs have been removed.
 
 ## License
 
-MIT. See [LICENSE](LICENSE).
-
-## Contact
-
-Questions and contributions: `damian.ulan@protonmail.com`
+Laravel Sentinel is open-sourced software licensed under the [MIT license](LICENSE).
